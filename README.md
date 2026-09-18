@@ -117,3 +117,9 @@ Fontos: a repositoryba a fájlok kerüljenek közvetlenül, ne egy újabb `VoltM
 
 - Az Áruház főképe színesebb, barátságosabb elektronikai piacteret mutat.
 - A kép külön projektfájlként került az `assets` mappába, ezért GitHub Pages-en is betöltődik.
+
+## 3.7 egységes felületi téma
+
+- A Munkák, Műhely, Tech kerék, Csapat, Üzlet, Felszerelés és Előzmények fülek is megkapták az Áruház színes arcade témáját.
+- A kártyák, gombok, hátterek és állapotjelzők egységes, türkiz–pink–arany kiemeléseket használnak.
+- A kisebb kijelzőkre külön tördelési szabályok maradtak érvényben.
