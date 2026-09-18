@@ -104,3 +104,11 @@ Fontos: a repositoryba a fájlok kerüljenek közvetlenül, ne egy újabb `VoltM
 - Újratervezett nyitófelület két kezdőgombbal és fejlődési jelzőkkel.
 - Munkák, műhely és jutalomkerék gyorsindító kártyák magyar és angol szöveggel.
 - Telefonon is egymás alá rendeződő, érintésbarát főoldal.
+
+## 3.5 mestertechnikus és bolti licitpiac
+
+- 30. szinttől drága mestertechnikus vehető fel a Csapat oldalon.
+- Egy saját hibás projekt adható át neki; a diagnosztika 1 perc, az összeszerelés 2 perc.
+- A minőség kiválasztása után az alkatrészek költsége látható és levonódik.
+- A bolt megvásárlása után a kész termékek külön licitpiacra kerülnek, ahol 20 másodpercig elfogadható ajánlat jelenik meg.
+- A bolt fejlesztései és munkatársai már a feloldás előtt előnézetként láthatók.
