@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="VoltMarket – elektronikai webshop és karrierjáték virtuális kreditekkel." />
+  <title>VoltMarket</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0b0e'/%3E%3Cpath d='M37 7 17 36h13l-4 21 21-31H34z' fill='%23ef233c'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="styles.css?v=3.1" />
+</head>
+<body>
+  <div class="scanlines" aria-hidden="true"></div>
+  <header class="topbar">
+    <a class="brand" href="#" data-view="shop" aria-label="VoltMarket főoldal"><span class="brand-mark">V</span><span>VOLT<span>MARKET</span></span></a>
+    <nav class="nav" aria-label="Fő navigáció">
+      <button class="nav-btn active" data-view="shop" data-i18n="navShop">Áruház</button>
+      <button class="nav-btn" data-view="jobs" data-i18n="navJobs">Munkák</button>
+      <button class="nav-btn" data-view="workshop" data-i18n="navWorkshop">Műhely</button>
+      <button class="nav-btn" data-view="wheel" data-i18n="navWheel">Tech kerék</button>
+      <button class="nav-btn" data-view="team" data-i18n="navTeam">Csapat</button>
+      <button class="nav-btn" data-view="store" data-i18n="navStore">Üzlet</button>
+      <button class="nav-btn" data-view="equipment" data-i18n="navEquipment">Felszerelésem</button>
+      <button class="nav-btn" data-view="history" data-i18n="navHistory">Előzmények</button>
+    </nav>
+    <div class="hud">
+      <div class="balance"><span data-i18n="credit">KREDIT</span><strong id="balance">150 000</strong></div>
+      <button id="langToggle" class="lang-toggle" type="button" aria-label="Nyelv váltása" aria-pressed="false">🇭🇺 HU</button>
+      <button id="cartButton" class="cart-btn" aria-label="Kosár megnyitása"><span data-i18n="cart">Kosár</span> <b id="cartCount">0</b></button>
+    </div>
+  </header>
+
+  <main>
+    <section class="player-strip" aria-label="Játékos állapota">
+      <div><span class="eyebrow" data-i18n="playerProfile">JÁTÉKOSPROFIL</span><strong id="levelLabel">1. SZINT</strong></div>
+      <div class="xp-wrap"><div class="xp-label"><span data-i18n="xpLabel">Tapasztalat</span><span id="xpText">0 / 100 XP</span></div><div class="xp-track"><div id="xpBar" class="xp-bar"></div></div></div>
+      <div class="bonus"><span data-i18n="activeBonus">Aktív bónusz</span><strong id="bonusText">+0% bevétel</strong></div>
+    </section>
+
+    <section id="wheel" class="view">
+      <div class="page-title"><span class="eyebrow">INGYENES TECH JUTALOM</span><h1>Technológiai kerék</h1><p>Tízpercenként egy ingyenes pörgetés. Játékbeli jutalmak, valódi pénz nélkül.</p></div>
+      <div class="wheel-shell">
+        <div class="wheel-pointer" aria-hidden="true">▼</div>
+        <div id="prizeWheel" class="prize-wheel" aria-label="Technológiai jutalomkerék">
+          <div class="wheel-lights" aria-hidden="true"></div>
+          <div class="wheel-labels" aria-hidden="true"><span><b>2 000</b><small>CR</small></span><span><b>HASZNÁLT</b><small>ALKATRÉSZ</small></span><span><b>30</b><small>XP</small></span><span><b>NORMÁL</b><small>ALKATRÉSZ</small></span><span><b>SEMMI</b><small>PRÓBÁLD ÚJRA</small></span><span><b>5 000</b><small>CR</small></span><span><b>HIBÁS</b><small>ESZKÖZ</small></span><span><b>60</b><small>XP</small></span><span><b>PRÉMIUM</b><small>ALKATRÉSZ</small></span><span><b>JAVÍTOTT</b><small>TELEFON</small></span></div>
+          <button id="spinWheel" class="spin-button" type="button">PÖRGETÉS</button>
+        </div>
+        <strong id="wheelCooldown" class="wheel-cooldown">Pörgetésre kész</strong>
+        <p id="wheelResult" class="wheel-result" aria-live="polite">A jutalom a kerék megállása után jelenik meg.</p>
+      </div>
+    </section>
+
+    <section id="shop" class="view active">
+      <div class="hero">
+        <img src="assets/voltmarket-hero.png" alt="Vörös neonfényben megvilágított gamer elektronikai felszerelés" />
+        <div class="hero-overlay"></div>
+        <div class="hero-content">
+          <span class="kicker" data-i18n="systemOnline">SYSTEM ONLINE // 01</span>
+          <h1 id="heroTitle">ÉPÍTSD FEL A<br><em>TECH BIRODALMAD</em></h1>
+          <p id="heroText">Dolgozz, szerezz kreditet, fejleszd a felszerelésed és oldj fel magasabb szintű megbízásokat.</p>
+          <button class="primary" data-view="jobs" data-i18n="startWorking">Kezdj el dolgozni <span>→</span></button>
+        </div>
+      </div>
+      <div class="section-head"><div><span class="eyebrow" data-i18n="equipmentMarket">FELSZERELÉS-PIAC</span><h2 data-i18n="availableTech">Elérhető technológia</h2></div><label class="search"><span>⌕</span><input id="searchInput" type="search" data-i18n-placeholder="searchPlaceholder" placeholder="Termék keresése…" /></label></div>
+      <div id="filters" class="filters"></div>
+      <div id="productGrid" class="product-grid"></div>
+    </section>
+
+    <section id="jobs" class="view">
+      <div class="page-title"><span class="eyebrow" data-i18n="careerCenter">KARRIERKÖZPONT</span><h1 data-i18n="chooseTask">Válassz megbízást</h1><p data-i18n="jobsSubtitle">A jobb felszerelés új munkákat és nagyobb jutalmat nyit meg.</p></div>
+      <div id="jobGrid" class="job-grid"></div>
+    </section>
+
+    <section id="workshop" class="view">
+      <div class="page-title"><span class="eyebrow" data-i18n="serviceTrade">SZERVIZ & KERESKEDÉS</span><h1 data-i18n="workshopTitle">Újítsd fel. Építsd meg. Add el.</h1><p data-i18n="workshopSubtitle">Vegyél hibás eszközt, diagnosztizáld, vásárolj alkatrészt, majd értékesítsd haszonnal.</p></div>
+      <div class="workshop-stats"><div><span>ALKATRÉSZEK</span><strong id="partCount">0 db</strong></div><div><span>FOLYAMATBAN</span><strong id="projectCount">0 projekt</strong></div><div><span>ELADÁSRA KÉSZ</span><strong id="finishedCount">0 eszköz</strong></div></div>
+      <div class="commerce-grid">
+        <section class="commerce-panel"><div class="subhead"><span class="eyebrow">ÜGYFÉLSZOLGÁLAT</span><h2>Aktuális megrendelés</h2></div><div id="customerOffer"></div></section>
+        <section class="commerce-panel"><div class="subhead"><span class="eyebrow">SZABADPIAC</span><h2>Piaci hirdetéseim</h2></div><div id="marketGrid"></div></section>
+      </div>
+      <div id="printerLab" class="printer-lab"></div>
+      <div class="workshop-layout">
+        <div><div class="subhead"><span class="eyebrow">HIBÁS KÉSZLET</span><h2>Felújítási projektek</h2></div><div id="salvageGrid" class="salvage-grid"></div></div>
+        <div><div class="subhead"><span class="eyebrow">ALKATRÉSZPIAC</span><h2>Új alkatrészek</h2></div><div id="partsGrid" class="parts-grid"></div></div>
+      </div>
+      <div class="subhead bench-head"><span class="eyebrow">MUNKAPAD</span><h2>Aktív javítások és építések</h2></div>
+      <div id="projectGrid" class="project-grid"></div>
+      <div class="subhead bench-head"><span class="eyebrow">ÉRTÉKESÍTÉS</span><h2>Eladásra kész eszközök</h2></div>
+      <div id="finishedGrid" class="finished-grid"></div>
+    </section>
+
+    <section id="team" class="view">
+      <div class="page-title"><span class="eyebrow">VOLT TEAM</span><h1>Építsd fel a csapatodat</h1><p>Tapasztalt munkatársak kis, folyamatos bevételt termelnek, és megkapják az aktív profit- és sebességbónuszaidat.</p></div>
+      <div id="employeeSummary" class="employee-summary"></div>
+      <div id="employeeGrid" class="employee-grid"></div>
+    </section>
+
+    <section id="store" class="view">
+      <div class="page-title"><span class="eyebrow">LEVEL 35 // ENDGAME</span><h1>Saját VoltMarket üzlet</h1><p>Vásárold meg az üzletet, fejleszd a berendezést, és építs egy nagyobb csapatot.</p></div>
+      <div id="storeStatus"></div>
+      <div id="storeUpgradeGrid" class="store-upgrade-grid"></div>
+      <div id="storeStaffSection" class="store-staff-section"><div class="subhead"><span class="eyebrow">ÜZLETI CSAPAT</span><h2>További munkatársak</h2></div><div id="storeStaffGrid" class="employee-grid"></div></div>
+    </section>
+
+    <section id="equipment" class="view">
+      <div class="page-title"><span class="eyebrow" data-i18n="inventory">INVENTORY</span><h1 data-i18n="myEquipment">Felszerelésem</h1><p data-i18n="equipmentSubtitle">A megvásárolt eszközeid és aktív bónuszaid.</p></div>
+      <div id="equipmentGrid" class="product-grid"></div>
+    </section>
+
+    <section id="history" class="view">
+      <div class="page-title"><span class="eyebrow" data-i18n="historyEyebrow">RENDSZERNAPLÓ</span><h1 data-i18n="historyTitle">Tranzakciók</h1><p data-i18n="historySubtitle">Minden megszerzett és elköltött kredit egy helyen.</p></div>
+      <div class="history-panel"><div id="historyList"></div><button id="resetButton" class="danger" data-i18n="resetButton">Játék újrakezdése</button></div>
+    </section>
+  </main>
+
+  <aside id="cartDrawer" class="drawer" aria-hidden="true">
+    <div class="drawer-head"><div><span class="eyebrow" data-i18n="cartEyebrow">VIRTUÁLIS KOSÁR</span><h2 data-i18n="cartTitle">Kiválasztott eszközök</h2></div><button id="closeCart" class="icon-btn" aria-label="Kosár bezárása">×</button></div>
+    <div id="cartItems" class="cart-items"></div>
+    <div class="cart-footer"><div><span data-i18n="cartTotalLabel">Összesen</span><strong id="cartTotal">0 kredit</strong></div><button id="checkoutButton" class="primary wide" data-i18n="checkoutButton">Vásárlás véglegesítése</button><small data-i18n="checkoutNote">Ez kizárólag játékbeli kredit, valódi fizetés nem történik.</small></div>
+  </aside>
+  <div id="backdrop" class="backdrop"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+<div id="gameModal" class="game-modal" aria-hidden="true"><div class="game-box"><button id="closeGame" class="icon-btn game-close" aria-label="Bezárás">×</button><span class="eyebrow" data-i18n="diagnosticTerminal">DIAGNOSZTIKAI TERMINÁL</span><h2 data-i18n="diagnosticTitle">Gyorsdiagnosztika</h2><p data-i18n="diagnosticPrompt">Teljesítsd az egyszeri diagnosztikai feladatot.</p><div id="targetText" class="target-text"></div><div id="circuitGame" class="circuit-game" aria-label="Egérrel vezérelhető áramköri minijáték"></div><input id="typingInput" class="typing-input" autocomplete="off" spellcheck="false" placeholder="Gépelj ide…"/><div class="game-status"><span id="gameTimer">Nincs időlimit</span><span id="gameProgress">0 / 1</span></div></div></div>
+
+  <script src="app.js?v=3.1"></script>
+  <script src="workshop.js?v=3.1"></script>
+</body>
+</html>
