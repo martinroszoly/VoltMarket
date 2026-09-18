@@ -112,3 +112,8 @@ Fontos: a repositoryba a fájlok kerüljenek közvetlenül, ne egy újabb `VoltM
 - A minőség kiválasztása után az alkatrészek költsége látható és levonódik.
 - A bolt megvásárlása után a kész termékek külön licitpiacra kerülnek, ahol 20 másodpercig elfogadható ajánlat jelenik meg.
 - A bolt fejlesztései és munkatársai már a feloldás előtt előnézetként láthatók.
+
+## 3.6 új Áruház-kép
+
+- Az Áruház főképe színesebb, barátságosabb elektronikai piacteret mutat.
+- A kép külön projektfájlként került az `assets` mappába, ezért GitHub Pages-en is betöltődik.
