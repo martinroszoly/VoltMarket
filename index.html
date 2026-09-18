@@ -16,9 +16,7 @@
       <button class="nav-btn active" data-view="shop" data-i18n="navShop">Áruház</button>
       <button class="nav-btn" data-view="jobs" data-i18n="navJobs">Munkák</button>
       <button class="nav-btn" data-view="workshop" data-i18n="navWorkshop">Műhely</button>
-      <button class="nav-btn" data-view="wheel" data-i18n="navWheel">Tech kerék</button>
-      <button class="nav-btn" data-view="team" data-i18n="navTeam">Csapat</button>
-      <button class="nav-btn" data-view="store" data-i18n="navStore">Üzlet</button>
+      <button class="nav-btn" data-view="wheel">Tech kerék</button>
       <button class="nav-btn" data-view="equipment" data-i18n="navEquipment">Felszerelésem</button>
       <button class="nav-btn" data-view="history" data-i18n="navHistory">Előzmények</button>
     </nav>
@@ -41,8 +39,7 @@
       <div class="wheel-shell">
         <div class="wheel-pointer" aria-hidden="true">▼</div>
         <div id="prizeWheel" class="prize-wheel" aria-label="Technológiai jutalomkerék">
-          <div class="wheel-lights" aria-hidden="true"></div>
-          <div class="wheel-labels" aria-hidden="true"><span><b>2 000</b><small>CR</small></span><span><b>HASZNÁLT</b><small>ALKATRÉSZ</small></span><span><b>30</b><small>XP</small></span><span><b>NORMÁL</b><small>ALKATRÉSZ</small></span><span><b>SEMMI</b><small>PRÓBÁLD ÚJRA</small></span><span><b>5 000</b><small>CR</small></span><span><b>HIBÁS</b><small>ESZKÖZ</small></span><span><b>60</b><small>XP</small></span><span><b>PRÉMIUM</b><small>ALKATRÉSZ</small></span><span><b>JAVÍTOTT</b><small>TELEFON</small></span></div>
+          <div class="wheel-labels" aria-hidden="true"><span>2 000 CR</span><span>ALKATRÉSZ</span><span>SEMMI</span><span>XP</span><span>HIBÁS GÉP</span><span>5 000 CR</span><span>NORMÁL</span><span>PRÉMIUM</span></div>
           <button id="spinWheel" class="spin-button" type="button">PÖRGETÉS</button>
         </div>
         <strong id="wheelCooldown" class="wheel-cooldown">Pörgetésre kész</strong>
@@ -74,11 +71,6 @@
     <section id="workshop" class="view">
       <div class="page-title"><span class="eyebrow" data-i18n="serviceTrade">SZERVIZ & KERESKEDÉS</span><h1 data-i18n="workshopTitle">Újítsd fel. Építsd meg. Add el.</h1><p data-i18n="workshopSubtitle">Vegyél hibás eszközt, diagnosztizáld, vásárolj alkatrészt, majd értékesítsd haszonnal.</p></div>
       <div class="workshop-stats"><div><span>ALKATRÉSZEK</span><strong id="partCount">0 db</strong></div><div><span>FOLYAMATBAN</span><strong id="projectCount">0 projekt</strong></div><div><span>ELADÁSRA KÉSZ</span><strong id="finishedCount">0 eszköz</strong></div></div>
-      <div class="commerce-grid">
-        <section class="commerce-panel"><div class="subhead"><span class="eyebrow">ÜGYFÉLSZOLGÁLAT</span><h2>Aktuális megrendelés</h2></div><div id="customerOffer"></div></section>
-        <section class="commerce-panel"><div class="subhead"><span class="eyebrow">SZABADPIAC</span><h2>Piaci hirdetéseim</h2></div><div id="marketGrid"></div></section>
-      </div>
-      <div id="printerLab" class="printer-lab"></div>
       <div class="workshop-layout">
         <div><div class="subhead"><span class="eyebrow">HIBÁS KÉSZLET</span><h2>Felújítási projektek</h2></div><div id="salvageGrid" class="salvage-grid"></div></div>
         <div><div class="subhead"><span class="eyebrow">ALKATRÉSZPIAC</span><h2>Új alkatrészek</h2></div><div id="partsGrid" class="parts-grid"></div></div>
@@ -87,19 +79,6 @@
       <div id="projectGrid" class="project-grid"></div>
       <div class="subhead bench-head"><span class="eyebrow">ÉRTÉKESÍTÉS</span><h2>Eladásra kész eszközök</h2></div>
       <div id="finishedGrid" class="finished-grid"></div>
-    </section>
-
-    <section id="team" class="view">
-      <div class="page-title"><span class="eyebrow">VOLT TEAM</span><h1>Építsd fel a csapatodat</h1><p>Tapasztalt munkatársak kis, folyamatos bevételt termelnek, és megkapják az aktív profit- és sebességbónuszaidat.</p></div>
-      <div id="employeeSummary" class="employee-summary"></div>
-      <div id="employeeGrid" class="employee-grid"></div>
-    </section>
-
-    <section id="store" class="view">
-      <div class="page-title"><span class="eyebrow">LEVEL 35 // ENDGAME</span><h1>Saját VoltMarket üzlet</h1><p>Vásárold meg az üzletet, fejleszd a berendezést, és építs egy nagyobb csapatot.</p></div>
-      <div id="storeStatus"></div>
-      <div id="storeUpgradeGrid" class="store-upgrade-grid"></div>
-      <div id="storeStaffSection" class="store-staff-section"><div class="subhead"><span class="eyebrow">ÜZLETI CSAPAT</span><h2>További munkatársak</h2></div><div id="storeStaffGrid" class="employee-grid"></div></div>
     </section>
 
     <section id="equipment" class="view">
@@ -120,7 +99,7 @@
   </aside>
   <div id="backdrop" class="backdrop"></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-<div id="gameModal" class="game-modal" aria-hidden="true"><div class="game-box"><button id="closeGame" class="icon-btn game-close" aria-label="Bezárás">×</button><span class="eyebrow" data-i18n="diagnosticTerminal">DIAGNOSZTIKAI TERMINÁL</span><h2 data-i18n="diagnosticTitle">Gyorsdiagnosztika</h2><p data-i18n="diagnosticPrompt">Teljesítsd az egyszeri diagnosztikai feladatot.</p><div id="targetText" class="target-text"></div><div id="circuitGame" class="circuit-game" aria-label="Egérrel vezérelhető áramköri minijáték"></div><input id="typingInput" class="typing-input" autocomplete="off" spellcheck="false" placeholder="Gépelj ide…"/><div class="game-status"><span id="gameTimer">Nincs időlimit</span><span id="gameProgress">0 / 1</span></div></div></div>
+<div id="gameModal" class="game-modal" aria-hidden="true"><div class="game-box"><button id="closeGame" class="icon-btn game-close" aria-label="Bezárás">×</button><span class="eyebrow" data-i18n="diagnosticTerminal">DIAGNOSZTIKAI TERMINÁL</span><h2 data-i18n="diagnosticTitle">Gyorsdiagnosztika</h2><p data-i18n="diagnosticPrompt">Teljesítsd az egyszeri diagnosztikai feladatot.</p><div id="targetText" class="target-text"></div><input id="typingInput" class="typing-input" autocomplete="off" spellcheck="false" placeholder="Gépelj ide…"/><div class="game-status"><span id="gameTimer">Nincs időlimit</span><span id="gameProgress">0 / 1</span></div></div></div>
 
   <script src="app.js"></script>
   <script src="workshop.js"></script>
