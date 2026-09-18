@@ -120,6 +120,13 @@ Fontos: a repositoryba a fájlok kerüljenek közvetlenül, ne egy újabb `VoltM
 
 ## 3.7 egységes felületi téma
 
+## 3.8 részletes áruház-vizuál
+
+- részletes, egységes termékikonok a fő felszerelés-kártyákon;
+- ügyfélajánlatokon arcos ügyfélprofil és mobilbarát kártyaelrendezés;
+- frissített áruházi hőskép külön telefonos előnézeti panel nélkül;
+- a magyar és angol felület, valamint a mentés és GitHub Pages működése változatlan.
+
 - A Munkák, Műhely, Tech kerék, Csapat, Üzlet, Felszerelés és Előzmények fülek is megkapták az Áruház színes arcade témáját.
 - A kártyák, gombok, hátterek és állapotjelzők egységes, türkiz–pink–arany kiemeléseket használnak.
 - A kisebb kijelzőkre külön tördelési szabályok maradtak érvényben.
