@@ -185,3 +185,13 @@ Fontos: a repositoryba a fájlok kerüljenek közvetlenül, ne egy újabb `VoltM
 - A munkatechnikus ugyanazt a csökkentett kreditjutalmat és megemelt XP-t használja, mint a játékos.
 - A piaci eladások, ügyfélrendelések, bolti licitek, alkalmazottak és üzletek kreditbevétele változatlan maradt.
 - A felületen látható CR- és XP-értékek a tényleges jóváírással egyeznek.
+
+## 4.6 hangrendszer és beállítások
+
+- Új Beállítások fül került be hangkapcsolóval, hangerővel és külön UI / jutalom / műhely csatornákkal.
+- A hangok böngészőben generált, rövid effektek, ezért nem kell külön hangfájlokat feltölteni.
+- Egyszerre csak egy effekt szólhat: új hang indításakor az előző leáll.
+- Hang került az általános UI műveletekre, nyelvváltásra, kosárra, munkakezdésre, munka elkészülésére, XP-re, szintlépésre és kreditjutalomra.
+- A műhelyben hangot kapott a diagnosztika, az összeszerelés, a sikeres javítás és a hibás művelet.
+- A piac és a bolti ajánlatok csak játékbeli termékeladási visszajelzést kaptak; nincs tét vagy szerencsejátékos mechanika.
+- A gyorsítótár frissítését a 4.6-os CSS- és JavaScript-verzió biztosítja.

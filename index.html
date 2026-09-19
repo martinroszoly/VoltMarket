@@ -6,7 +6,7 @@
   <meta name="description" content="VoltMarket – elektronikai webshop és karrierjáték virtuális kreditekkel." />
   <title>VoltMarket</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0b0e'/%3E%3Cpath d='M37 7 17 36h13l-4 21 21-31H34z' fill='%23ef233c'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="styles.css?v=4.5" />
+  <link rel="stylesheet" href="styles.css?v=4.6" />
 </head>
 <body>
   <div class="scanlines" aria-hidden="true"></div>
@@ -21,6 +21,7 @@
       <button class="nav-btn" data-view="store" data-i18n="navStore">Üzlet</button>
       <button class="nav-btn" data-view="equipment" data-i18n="navEquipment">Felszerelésem</button>
       <button class="nav-btn" data-view="history" data-i18n="navHistory">Előzmények</button>
+      <button class="nav-btn" data-view="settings" data-i18n="navSettings">Beállítások</button>
     </nav>
     <div class="hud">
       <div class="balance"><span data-i18n="credit">KREDIT</span><strong id="balance">150 000</strong></div>
@@ -130,6 +131,33 @@
       <div class="page-title"><span class="eyebrow" data-i18n="historyEyebrow">RENDSZERNAPLÓ</span><h1 data-i18n="historyTitle">Tranzakciók</h1><p data-i18n="historySubtitle">Minden megszerzett és elköltött kredit egy helyen.</p></div>
       <div class="history-panel"><div id="historyList"></div><button id="resetButton" class="danger" data-i18n="resetButton">Játék újrakezdése</button></div>
     </section>
+
+    <section id="settings" class="view">
+      <div class="page-title"><span class="eyebrow" data-i18n="settingsEyebrow">RENDSZERHANGOK</span><h1 data-i18n="settingsTitle">Beállítások</h1><p data-i18n="settingsSubtitle">Állítsd be, milyen hangok szóljanak a játékban.</p></div>
+      <div class="settings-grid">
+        <article class="settings-card">
+          <span class="settings-icon">🔊</span>
+          <div>
+            <h3 data-i18n="soundMaster">Hangok</h3>
+            <p data-i18n="soundMasterDesc">Minden játékbeli hang be- vagy kikapcsolása.</p>
+          </div>
+          <button id="soundToggle" class="settings-toggle" type="button" aria-pressed="true">BE</button>
+        </article>
+        <article class="settings-card">
+          <span class="settings-icon">◒</span>
+          <div>
+            <h3 data-i18n="soundVolume">Hangerő</h3>
+            <p data-i18n="soundVolumeDesc">Mobilon is kellemes, rövid effektekhez.</p>
+            <input id="soundVolume" class="settings-range" type="range" min="0" max="100" value="55" />
+          </div>
+          <strong id="soundVolumeLabel">55%</strong>
+        </article>
+        <article class="settings-card compact"><span class="settings-icon">✦</span><div><h3 data-i18n="soundUi">UI hangok</h3><p data-i18n="soundUiDesc">Gombok, fülek, kosár és nyelvváltás.</p></div><button class="settings-toggle sound-channel" data-sound-channel="ui" type="button">BE</button></article>
+        <article class="settings-card compact"><span class="settings-icon">⚡</span><div><h3 data-i18n="soundRewards">Jutalomhangok</h3><p data-i18n="soundRewardsDesc">XP, kredit, szintlépés és tech bónusz.</p></div><button class="settings-toggle sound-channel" data-sound-channel="rewards" type="button">BE</button></article>
+        <article class="settings-card compact"><span class="settings-icon">🛠</span><div><h3 data-i18n="soundWorkshop">Munkák és műhely</h3><p data-i18n="soundWorkshopDesc">Diagnosztika, összeszerelés, munka, piac és licit.</p></div><button class="settings-toggle sound-channel" data-sound-channel="workshop" type="button">BE</button></article>
+      </div>
+      <button id="soundTest" class="primary settings-test" type="button" data-i18n="soundTest">Teszt hang</button>
+    </section>
   </main>
 
   <aside id="cartDrawer" class="drawer" aria-hidden="true">
@@ -150,8 +178,8 @@
   </div>
 <div id="gameModal" class="game-modal" aria-hidden="true"><div class="game-box"><button id="closeGame" class="icon-btn game-close" aria-label="Bezárás">×</button><span class="eyebrow" data-i18n="diagnosticTerminal">DIAGNOSZTIKAI TERMINÁL</span><h2 data-i18n="diagnosticTitle">Gyorsdiagnosztika</h2><p data-i18n="diagnosticPrompt">Teljesítsd az egyszeri diagnosztikai feladatot.</p><div id="targetText" class="target-text"></div><div id="circuitGame" class="circuit-game" aria-label="Egérrel vezérelhető áramköri minijáték"></div><input id="typingInput" class="typing-input" autocomplete="off" spellcheck="false" placeholder="Gépelj ide…"/><div class="game-status"><span id="gameTimer">Nincs időlimit</span><span id="gameProgress">0 / 1</span></div></div></div>
 
-  <script src="app.js?v=4.5"></script>
-  <script src="workshop.js?v=4.5"></script>
-  <script src="progression.js?v=4.5"></script>
+  <script src="app.js?v=4.6"></script>
+  <script src="workshop.js?v=4.6"></script>
+  <script src="progression.js?v=4.6"></script>
 </body>
 </html>
