@@ -163,7 +163,7 @@ Fontos: a repositoryba a fájlok kerüljenek közvetlenül, ne egy újabb `VoltM
 ## 4.3 javított termékek, XP és Tech jutalomsor
 
 - A készre szerelt eszközök már „Megjavított”, illetve 3D-nyomtatott termékeknél „Elkészült” néven jelennek meg; az angol nevek is frissültek.
-- A három passzív alkalmazott XP-termelése 25-szörösére nőtt; a globális XP-bónusszal ténylegesen 26, 53 és 79 XP-t adnak percenként.
+- A három passzív alkalmazott XP-termelése 25-szörösére nőtt; a globális XP-bónusszal ténylegesen 30, 60 és 90 XP-t adnak percenként.
 - Minden szabadpiaci eladás és elfogadott bolti licit külön, a termékhez igazodó XP-t is ad.
 - A Tech jutalomsor húsz garantált nyereményt tartalmaz, előre látható sorrendben, tét és véletlen eredmény nélkül.
 - A 15 perces aktiválás végén jelenik meg a középre ugró jutalomkártya, a modern konfetti és a rövid szintetizált hang.
@@ -177,3 +177,11 @@ Fontos: a repositoryba a fájlok kerüljenek közvetlenül, ne egy újabb `VoltM
 - Minden megszerzett XP – munkák, diagnosztika, összeszerelés, ügyfelek, piac, alkalmazottak, üzleti ciklusok és tech jutalmak – egységesen 5%-kal nőtt.
 - A kijelzett XP-értékek minden érintett felületen a ténylegesen jóváírt összeget mutatják.
 - A gyorsítótár frissítését a 4.4-es CSS- és JavaScript-verzió biztosítja.
+
+## 4.5 XP- és munkaegyensúly
+
+- Minden XP-jóváírás az eredeti alapértékhez képest összesen 20%-kal magasabb.
+- A „Munkák” fül feloldható munkáinak teljes kreditjutalma 35%-kal csökkent.
+- A munkatechnikus ugyanazt a csökkentett kreditjutalmat és megemelt XP-t használja, mint a játékos.
+- A piaci eladások, ügyfélrendelések, bolti licitek, alkalmazottak és üzletek kreditbevétele változatlan maradt.
+- A felületen látható CR- és XP-értékek a tényleges jóváírással egyeznek.
