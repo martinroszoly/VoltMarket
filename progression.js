@@ -18,13 +18,13 @@ const vmId = prefix => `${prefix}-${Date.now()}-${Math.floor(Math.random() * 100
 
 Object.assign(translations.hu, {
   navWheel:'Tech bónusz', launchWheel:'Vedd át',
-  techBonusEyebrow:'INGYENES TECH BÓNUSZ',techBonusTitle:'Energiamag jutalom',techBonusSubtitle:'Tízpercenként átveheted a következő, előre látható játékbeli bónuszt.',techBonusClaim:'BÓNUSZ ÁTVÉTELE',techBonusReadyText:'A következő jutalom előre látható és tízpercenként átvehető.',
+  techBonusEyebrow:'INGYENES TECH BÓNUSZ',techBonusTitle:'Energiamag jutalom',techBonusSubtitle:'Tizenöt percenként átveheted a következő, előre látható játékbeli bónuszt.',techBonusClaim:'BÓNUSZ ÁTVÉTELE',techBonusReadyText:'A következő jutalom előre látható és tizenöt percenként átvehető.',techBonusRewards:'ELÉRHETŐ JUTALMAK',techBonusNoStake:'Ingyenes · nincs tét · a termékjutalmak prémium minőségűek',
   customerDeskEyebrow:'ÜGYFÉLSZOLGÁLAT', customerDeskTitle:'Ügyfélajánlatok',
   businessHubTitle:'VoltMarket üzleti központ', businessHubSubtitle:'Nyiss üzleteket, fejleszd a franchise-t és építs prémium technológiai emeletet.'
 });
 Object.assign(translations.en, {
   navWheel:'Tech bonus', launchWheel:'Claim bonus',
-  techBonusEyebrow:'FREE TECH BONUS',techBonusTitle:'Energy core reward',techBonusSubtitle:'Claim the next visible in-game bonus every ten minutes.',techBonusClaim:'CLAIM BONUS',techBonusReadyText:'The next reward is visible in advance and can be claimed every ten minutes.',
+  techBonusEyebrow:'FREE TECH BONUS',techBonusTitle:'Energy core reward',techBonusSubtitle:'Claim the next visible in-game bonus every fifteen minutes.',techBonusClaim:'CLAIM BONUS',techBonusReadyText:'The next reward is visible in advance and can be claimed every fifteen minutes.',techBonusRewards:'AVAILABLE REWARDS',techBonusNoStake:'Free · no stake · product rewards are premium quality',
   customerDeskEyebrow:'CUSTOMER SERVICE', customerDeskTitle:'Customer offers',
   businessHubTitle:'VoltMarket business hub', businessHubSubtitle:'Open stores, upgrade your franchise, and build a premium technology floor.'
 });
@@ -197,12 +197,25 @@ renderCustomerMarket = function () {
     const o = customerProfile(slot.offer), b = blueprint(o.type);
     return `<article class="offer-card compact"><img class="customer-avatar" src="${o.avatar}" alt="${o.customer}"><span class="category">${o.customer.toUpperCase()} · ${vmText('AJÁNLAT','OFFER')}</span><h3>${vmBlueprintName(b)}</h3><p>${vmText('Kért minőség','Requested quality')}: <strong>${vmQualityName(o.quality)}</strong></p><div class="offer-reward">${fmt(o.reward)} CR · +${o.xp} XP</div><div class="offer-actions"><button class="small-btn accept-offer-v4" data-customer-slot="${index}">${vmText('Elfogadás','Accept')}</button><button class="small-btn decline-offer-v4" data-customer-slot="${index}">${vmText('Elutasítás','Decline')}</button></div></article>`;
   }).join('');
-  offerEl.innerHTML = `<div class="customer-board-head"><strong>${vmText('Élő ügyfélpult','Live customer desk')}</strong><span>${workshop.activeOrders.length} / 5 ${vmText('aktív munka','active jobs')}</span></div>${active ? `<div class="active-order-grid">${active}</div>` : ''}<div class="customer-offer-grid">${offers}</div>`;
-  marketEl.innerHTML = workshop.marketListings.length ? workshop.marketListings.map(item => {const b=blueprint(item.type);return `<article class="market-card"><span class="device-icon">${b.icon}</span><div><strong>${vmBlueprintName(b)}</strong><small>${vmQualityName(item.quality||'normal')}</small><span class="market-searching">● ${vmText('Vevő keresése…','Finding a buyer…')}</span></div></article>`}).join('') : `<div class="mini-empty">${vmText('Nincs piacon lévő termék.','No products are listed.')}</div>`;
+  const customerKey = `${state.language}|${workshop.activeOrders.map(o=>`${o.id}:${o.type}:${o.quality}`).join(',')}|${workshop.customerSlots.map(slot=>slot.offer?`${slot.offer.id}:${slot.offer.type}:${slot.offer.quality}`:'waiting').join(',')}`;
+  if (offerEl.dataset.renderKey !== customerKey) {
+    offerEl.dataset.renderKey = customerKey;
+    offerEl.innerHTML = `<div class="customer-board-head"><strong>${vmText('Élő ügyfélpult','Live customer desk')}</strong><span>${workshop.activeOrders.length} / 5 ${vmText('aktív munka','active jobs')}</span></div><div class="active-order-stage">${active ? `<div class="active-order-grid">${active}</div>` : ''}</div><div class="customer-offer-grid">${offers}</div>`;
+  }
+  const marketKey = `${state.language}|${workshop.marketListings.map(item=>`${item.listingId||item.completed}:${item.type}:${item.quality}`).join(',')}`;
+  if (marketEl.dataset.renderKey !== marketKey) {
+    marketEl.dataset.renderKey = marketKey;
+    marketEl.innerHTML = workshop.marketListings.length ? workshop.marketListings.map(item => {const b=blueprint(item.type);return `<article class="market-card"><span class="device-icon">${b.icon}</span><div><strong>${vmBlueprintName(b)}</strong><small>${vmQualityName(item.quality||'normal')}</small><span class="market-searching">● ${vmText('Vevő keresése…','Finding a buyer…')}</span></div></article>`}).join('') : `<div class="mini-empty">${vmText('Nincs piacon lévő termék.','No products are listed.')}</div>`;
+  }
   const storeGrid=document.querySelector('#storeMarketGrid');
   if(storeGrid){
-    if(!workshop.storeOwned)storeGrid.innerHTML=`<div class="mini-empty">${vmText('A licitpiac az első üzlet megvásárlása után nyílik meg.','The bidding market opens after purchasing the first store.')}</div>`;
-    else storeGrid.innerHTML=workshop.marketListings.length?workshop.marketListings.map(item=>{const b=blueprint(item.type),left=Math.max(0,Math.ceil(((item.bidExpiresAt||Date.now())-Date.now())/1000));return `<article class="bid-card"><span class="device-icon">${b.icon}</span><div><strong>${vmBlueprintName(b)}</strong><small>${item.premium?vmText('Prémium emelet','Premium floor'):vmQualityName(item.quality||'normal')}</small><span class="bid-price">${fmt(item.bidPrice||item.salePrice)} CR</span><span class="bid-timer">${vmText('Licit vége','Bid ends')}: ${left} ${vmText('mp','sec')}</span></div><button class="primary accept-bid" data-listing="${item.listingId}">${vmText('Elfogadom','Accept')}</button></article>`}).join(''):`<div class="mini-empty">${vmText('Nincs aktív licit.','No active bids.')}</div>`;
+    const storeKey=`${state.language}|${workshop.storeOwned}|${workshop.marketListings.map(item=>`${item.listingId}:${item.type}:${item.quality}:${item.bidPrice}:${item.bidExpiresAt}`).join(',')}`;
+    if(storeGrid.dataset.renderKey!==storeKey){
+      storeGrid.dataset.renderKey=storeKey;
+      if(!workshop.storeOwned)storeGrid.innerHTML=`<div class="mini-empty">${vmText('A licitpiac az első üzlet megvásárlása után nyílik meg.','The bidding market opens after purchasing the first store.')}</div>`;
+      else storeGrid.innerHTML=workshop.marketListings.length?workshop.marketListings.map(item=>{const b=blueprint(item.type),left=Math.max(0,Math.ceil(((item.bidExpiresAt||Date.now())-Date.now())/1000));return `<article class="bid-card"><span class="device-icon">${b.icon}</span><div><strong>${vmBlueprintName(b)}</strong><small>${item.premium?vmText('Prémium emelet','Premium floor'):vmQualityName(item.quality||'normal')}</small><span class="bid-price">${fmt(item.bidPrice||item.salePrice)} CR</span><span class="bid-timer">${vmText('Licit vége','Bid ends')}: <b data-bid-expires="${item.bidExpiresAt||Date.now()}">${left}</b> ${vmText('mp','sec')}</span></div><button class="primary accept-bid" data-listing="${item.listingId}">${vmText('Elfogadom','Accept')}</button></article>`}).join(''):`<div class="mini-empty">${vmText('Nincs aktív licit.','No active bids.')}</div>`;
+    }
+    storeGrid.querySelectorAll('[data-bid-expires]').forEach(el=>{el.textContent=Math.max(0,Math.ceil((Number(el.dataset.bidExpires)-Date.now())/1000))});
   }
 };
 

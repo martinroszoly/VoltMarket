@@ -25,7 +25,7 @@ Külön telepítés vagy `npm install` nem szükséges.
 - hibás telefonok, laptopok és PC-k felvásárlása;
 - alkatrészpiac, gyors gépelős diagnosztika és összeszerelési minijáték;
 - megjavított eszközök értékesítése játékbeli haszonnal.
-- ingyenes, előre látható technológiai bónusz 10 perces, mentett várakozási idővel;
+- ingyenes, előre látható technológiai bónusz 15 perces, mentett várakozási idővel;
 - használt, normál és prémium alkatrészminőségek;
 - 10. szinten feloldható konzol-, VR- és játékkormány-szerviz;
 - gaming technológiákhoz és szinthez kötött haladó munkák;
@@ -51,6 +51,16 @@ Fontos: a repositoryba a fájlok kerüljenek közvetlenül, ne egy újabb `VoltM
 - angol fordítás az új gaming felszerelésekhez és munkákhoz;
 - világosabb, színesebb arcade megjelenés;
 - a teljes hero-kép látható mobilnézetben.
+
+## 4.1 teljesítmény- és bónuszfrissítés
+
+- stabil magasságú vevőkártyák mobilon és számítógépen;
+- a vevőpult csak tényleges ajánlatváltáskor rajzolódik újra;
+- folyamatosabb, hardveresen gyorsított töltőanimációk;
+- 15 perces, ingyenes és előre látható tech-bónusz ciklus;
+- legalább 50 000 kredites pénzjutalmak;
+- kizárólag prémium alkatrész- és termékjutalmak;
+- a teljes jutalomlista és a következő jutalom megjelenik a bónuszoldalon.
 
 ## 2.2 frissítés
 
