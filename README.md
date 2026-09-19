@@ -195,3 +195,10 @@ Fontos: a repositoryba a fájlok kerüljenek közvetlenül, ne egy újabb `VoltM
 - A műhelyben hangot kapott a diagnosztika, az összeszerelés, a sikeres javítás és a hibás művelet.
 - A piac és a bolti ajánlatok csak játékbeli termékeladási visszajelzést kaptak; nincs tét vagy szerencsejátékos mechanika.
 - A gyorsítótár frissítését a 4.6-os CSS- és JavaScript-verzió biztosítja.
+
+## 4.7 fix vevőavatarok
+
+- Boti, Álla és Martin saját, VoltMarket-stílusú avatart és fix nevet kapott.
+- A korábbi férfi és női avatarok megmaradtak a véletlenszerű nevű vevőkhöz.
+- Az új fix vevők közül ugyanaz az avatar nem jelenik meg egymás után.
+- A CSS- és JavaScript-verzió 4.7-re frissült a GitHub Pages gyorsítótárának frissítéséhez.
