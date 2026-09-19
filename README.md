@@ -25,7 +25,7 @@ Külön telepítés vagy `npm install` nem szükséges.
 - hibás telefonok, laptopok és PC-k felvásárlása;
 - alkatrészpiac, gyors gépelős diagnosztika és összeszerelési minijáték;
 - megjavított eszközök értékesítése játékbeli haszonnal.
-- ingyenes technológiai jutalomkerék 10 perces, mentett várakozási idővel;
+- ingyenes, előre látható technológiai bónusz 10 perces, mentett várakozási idővel;
 - használt, normál és prémium alkatrészminőségek;
 - 10. szinten feloldható konzol-, VR- és játékkormány-szerviz;
 - gaming technológiákhoz és szinthez kötött haladó munkák;
@@ -38,6 +38,7 @@ Külön telepítés vagy `npm install` nem szükséges.
 2. Nyisd meg a GitHubon a meglévő `VoltMarket` repositoryt.
 3. Válaszd az **Add file → Upload files** lehetőséget.
 4. Töltsd fel a kicsomagolt mappa tartalmát: `index.html`, `app.js`, `workshop.js`, `styles.css`, `README.md` és az `assets` mappa.
+   A 4.0 verzióban a `progression.js` fájlt is töltsd fel.
 5. A feltöltés alján válaszd a **Commit changes** lehetőséget.
 6. A GitHub Pages néhány percen belül ugyanazon a címen frissíti az oldalt.
 
@@ -45,8 +46,8 @@ Fontos: a repositoryba a fájlok kerüljenek közvetlenül, ne egy újabb `VoltM
 
 ## 2.1 frissítés
 
-- a technológiai kerék nyila és a kiosztott jutalom most ugyanazt az eredményt használja;
-- tíz részletes kerékmező és új fényhatások;
+- modern energiamag-felület az időszakos technológiai bónuszhoz;
+- előre látható, sorban érkező játékbeli jutalmak;
 - angol fordítás az új gaming felszerelésekhez és munkákhoz;
 - világosabb, színesebb arcade megjelenés;
 - a teljes hero-kép látható mobilnézetben.
@@ -102,7 +103,7 @@ Fontos: a repositoryba a fájlok kerüljenek közvetlenül, ne egy újabb `VoltM
 
 - Új villámjelvényes VoltMarket logó és modernebb, színesebb fejléc.
 - Újratervezett nyitófelület két kezdőgombbal és fejlődési jelzőkkel.
-- Munkák, műhely és jutalomkerék gyorsindító kártyák magyar és angol szöveggel.
+- Munkák, műhely és Tech-bónusz gyorsindító kártyák magyar és angol szöveggel.
 - Telefonon is egymás alá rendeződő, érintésbarát főoldal.
 
 ## 3.5 mestertechnikus és bolti licitpiac
@@ -127,6 +128,22 @@ Fontos: a repositoryba a fájlok kerüljenek közvetlenül, ne egy újabb `VoltM
 - frissített áruházi hőskép külön telefonos előnézeti panel nélkül;
 - a magyar és angol felület, valamint a mentés és GitHub Pages működése változatlan.
 
-- A Munkák, Műhely, Tech kerék, Csapat, Üzlet, Felszerelés és Előzmények fülek is megkapták az Áruház színes arcade témáját.
+- A Munkák, Műhely, Tech bónusz, Csapat, Üzlet, Felszerelés és Előzmények fülek is megkapták az Áruház színes arcade témáját.
 - A kártyák, gombok, hátterek és állapotjelzők egységes, türkiz–pink–arany kiemeléseket használnak.
 - A kisebb kijelzőkre külön tördelési szabályok maradtak érvényben.
+
+## 4.0 üzleti fejlődés
+
+- az első üzletnek nincs szintkövetelménye, csak a vételárát kell összegyűjteni;
+- 35. szinten feloldható, fejleszthető automatikus franchise üzlet;
+- 37. szinttől többeszközös vállalati szerződések;
+- öt egymástól független ügyfélajánlat 20–35 másodperces, rejtett időzítéssel;
+- egyszerre legfeljebb öt elfogadott ügyfélmunka;
+- 45. szinten szervizirányító központ három saját/vállalati technikussal, három ügyféltechnikussal és egy munkatechnikussal;
+- az alkalmazotti diagnosztikát és összeszerelést minden esetben a játékos indítja;
+- a hiányzó alkatrészeket az alkalmazott az összeszerelés indításakor megvásárolhatja;
+- 50. szinten drón-, XR- és robotikai termékpolcokat tartalmazó prémium emelet;
+- 50. szinten nagy profitot és XP-t termelő harmadik automatikus üzlet;
+- a passzív csapattagok kredit mellett kis mennyiségű XP-t is termelnek;
+- új, különálló NovaForm 3D-nyomtató grafika;
+- magyar és angol feliratok, valamint telefonra és asztali gépre optimalizált új felületek.
