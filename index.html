@@ -6,7 +6,7 @@
   <meta name="description" content="VoltMarket – elektronikai webshop és karrierjáték virtuális kreditekkel." />
   <title>VoltMarket</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0b0e'/%3E%3Cpath d='M37 7 17 36h13l-4 21 21-31H34z' fill='%23ef233c'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="styles.css?v=4.1" />
+  <link rel="stylesheet" href="styles.css?v=4.2" />
 </head>
 <body>
   <div class="scanlines" aria-hidden="true"></div>
@@ -37,14 +37,19 @@
     </section>
 
     <section id="wheel" class="view">
-      <div class="page-title"><span class="eyebrow" data-i18n="techBonusEyebrow">INGYENES TECH BÓNUSZ</span><h1 data-i18n="techBonusTitle">Energiamag jutalom</h1><p data-i18n="techBonusSubtitle">Tizenöt percenként átveheted a következő, előre látható játékbeli bónuszt.</p></div>
+      <div class="page-title"><span class="eyebrow" data-i18n="techBonusEyebrow">INGYENES TECH BÓNUSZ</span><h1 data-i18n="techBonusTitle">Tech jutalomkör</h1><p data-i18n="techBonusSubtitle">Tizenöt percenként aktiválhatod a következő, előre látható játékbeli bónuszt.</p></div>
       <div class="wheel-shell bonus-vault">
-        <div id="prizeWheel" class="energy-core" aria-hidden="true"><span>⚡</span><i></i><b></b></div>
-        <button id="spinWheel" class="spin-button bonus-claim" type="button" data-i18n="techBonusClaim">BÓNUSZ ÁTVÉTELE</button>
+        <div id="prizeWheel" class="reward-dial" aria-label="Forgó tech jutalomkör">
+          <div id="rewardDialRotor" class="reward-dial-rotor">
+            <div id="rewardDialLabels" class="reward-dial-labels" aria-hidden="true"></div>
+            <div class="reward-dial-core" aria-hidden="true"><span>⚡</span><small>VOLT</small></div>
+          </div>
+        </div>
+        <button id="spinWheel" class="spin-button bonus-claim" type="button" data-i18n="techBonusClaim">JUTALOM AKTIVÁLÁSA</button>
         <strong id="wheelCooldown" class="wheel-cooldown">Bónuszra kész</strong>
         <p id="wheelResult" class="wheel-result" aria-live="polite" data-i18n="techBonusReadyText">A következő jutalom előre látható és tizenöt percenként átvehető.</p>
         <div class="reward-catalogue" aria-label="Elérhető tech bónuszok">
-          <div class="reward-catalogue-head"><span data-i18n="techBonusRewards">ELÉRHETŐ JUTALMAK</span><small data-i18n="techBonusNoStake">Ingyenes · nincs tét · a termékjutalmak prémium minőségűek</small></div>
+          <div class="reward-catalogue-head"><span data-i18n="techBonusRewards">20 ELÉRHETŐ JUTALOM</span><small data-i18n="techBonusNoStake">Ingyenes · nincs tét · a termékjutalmak prémium minőségűek</small></div>
           <div id="wheelPrizeList" class="reward-prize-list"></div>
         </div>
       </div>
@@ -134,8 +139,8 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 <div id="gameModal" class="game-modal" aria-hidden="true"><div class="game-box"><button id="closeGame" class="icon-btn game-close" aria-label="Bezárás">×</button><span class="eyebrow" data-i18n="diagnosticTerminal">DIAGNOSZTIKAI TERMINÁL</span><h2 data-i18n="diagnosticTitle">Gyorsdiagnosztika</h2><p data-i18n="diagnosticPrompt">Teljesítsd az egyszeri diagnosztikai feladatot.</p><div id="targetText" class="target-text"></div><div id="circuitGame" class="circuit-game" aria-label="Egérrel vezérelhető áramköri minijáték"></div><input id="typingInput" class="typing-input" autocomplete="off" spellcheck="false" placeholder="Gépelj ide…"/><div class="game-status"><span id="gameTimer">Nincs időlimit</span><span id="gameProgress">0 / 1</span></div></div></div>
 
-  <script src="app.js?v=4.1"></script>
-  <script src="workshop.js?v=4.1"></script>
-  <script src="progression.js?v=4.1"></script>
+  <script src="app.js?v=4.2"></script>
+  <script src="workshop.js?v=4.2"></script>
+  <script src="progression.js?v=4.2"></script>
 </body>
 </html>

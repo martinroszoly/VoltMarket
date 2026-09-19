@@ -18,13 +18,13 @@ const vmId = prefix => `${prefix}-${Date.now()}-${Math.floor(Math.random() * 100
 
 Object.assign(translations.hu, {
   navWheel:'Tech bónusz', launchWheel:'Vedd át',
-  techBonusEyebrow:'INGYENES TECH BÓNUSZ',techBonusTitle:'Energiamag jutalom',techBonusSubtitle:'Tizenöt percenként átveheted a következő, előre látható játékbeli bónuszt.',techBonusClaim:'BÓNUSZ ÁTVÉTELE',techBonusReadyText:'A következő jutalom előre látható és tizenöt percenként átvehető.',techBonusRewards:'ELÉRHETŐ JUTALMAK',techBonusNoStake:'Ingyenes · nincs tét · a termékjutalmak prémium minőségűek',
+  techBonusEyebrow:'INGYENES TECH BÓNUSZ',techBonusTitle:'Tech jutalomkör',techBonusSubtitle:'Tizenöt percenként aktiválhatod a következő, előre látható játékbeli bónuszt.',techBonusClaim:'JUTALOM AKTIVÁLÁSA',techBonusReadyText:'A következő jutalom előre látható és tizenöt percenként aktiválható.',techBonusRewards:'20 ELÉRHETŐ JUTALOM',techBonusNoStake:'Ingyenes · nincs tét · a termékjutalmak prémium minőségűek',
   customerDeskEyebrow:'ÜGYFÉLSZOLGÁLAT', customerDeskTitle:'Ügyfélajánlatok',
   businessHubTitle:'VoltMarket üzleti központ', businessHubSubtitle:'Nyiss üzleteket, fejleszd a franchise-t és építs prémium technológiai emeletet.'
 });
 Object.assign(translations.en, {
   navWheel:'Tech bonus', launchWheel:'Claim bonus',
-  techBonusEyebrow:'FREE TECH BONUS',techBonusTitle:'Energy core reward',techBonusSubtitle:'Claim the next visible in-game bonus every fifteen minutes.',techBonusClaim:'CLAIM BONUS',techBonusReadyText:'The next reward is visible in advance and can be claimed every fifteen minutes.',techBonusRewards:'AVAILABLE REWARDS',techBonusNoStake:'Free · no stake · product rewards are premium quality',
+  techBonusEyebrow:'FREE TECH BONUS',techBonusTitle:'Tech reward orbit',techBonusSubtitle:'Activate the next visible in-game bonus every fifteen minutes.',techBonusClaim:'ACTIVATE REWARD',techBonusReadyText:'The next reward is visible in advance and can be activated every fifteen minutes.',techBonusRewards:'20 AVAILABLE REWARDS',techBonusNoStake:'Free · no stake · product rewards are premium quality',
   customerDeskEyebrow:'CUSTOMER SERVICE', customerDeskTitle:'Customer offers',
   businessHubTitle:'VoltMarket business hub', businessHubSubtitle:'Open stores, upgrade your franchise, and build a premium technology floor.'
 });

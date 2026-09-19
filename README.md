@@ -52,7 +52,7 @@ Fontos: a repositoryba a fájlok kerüljenek közvetlenül, ne egy újabb `VoltM
 - világosabb, színesebb arcade megjelenés;
 - a teljes hero-kép látható mobilnézetben.
 
-## 4.1 teljesítmény- és bónuszfrissítés
+## 4.2 teljesítmény- és bónuszfrissítés
 
 - stabil magasságú vevőkártyák mobilon és számítógépen;
 - a vevőpult csak tényleges ajánlatváltáskor rajzolódik újra;
@@ -61,6 +61,8 @@ Fontos: a repositoryba a fájlok kerüljenek közvetlenül, ne egy újabb `VoltM
 - legalább 50 000 kredites pénzjutalmak;
 - kizárólag prémium alkatrész- és termékjutalmak;
 - a teljes jutalomlista és a következő jutalom megjelenik a bónuszoldalon.
+- modern, forgó tech jutalomtárcsa húsz előre látható jutalommal;
+- további XP-, kredit-, prémium alkatrész- és többtermékes csomagok.
 
 ## 2.2 frissítés
 
