@@ -202,3 +202,9 @@ Fontos: a repositoryba a fájlok kerüljenek közvetlenül, ne egy újabb `VoltM
 - A korábbi férfi és női avatarok megmaradtak a véletlenszerű nevű vevőkhöz.
 - Az új fix vevők közül ugyanaz az avatar nem jelenik meg egymás után.
 - A CSS- és JavaScript-verzió 4.7-re frissült a GitHub Pages gyorsítótárának frissítéséhez.
+
+## 4.8 avatar-megjelenési arány
+
+- Az új fix vevőavatarok és a régi általános avatarok most nagyjából fele-fele arányban jelennek meg.
+- A fix avatarok közül továbbra sem jelenik meg ugyanaz egymás után.
+- A CSS- és JavaScript-verzió 4.8-ra frissült.
