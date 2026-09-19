@@ -61,7 +61,7 @@ Fontos: a repositoryba a fájlok kerüljenek közvetlenül, ne egy újabb `VoltM
 - legalább 50 000 kredites pénzjutalmak;
 - kizárólag prémium alkatrész- és termékjutalmak;
 - a teljes jutalomlista és a következő jutalom megjelenik a bónuszoldalon.
-- modern, forgó tech jutalomtárcsa húsz előre látható jutalommal;
+- modern tech jutalomsor húsz előre látható, garantált jutalommal;
 - további XP-, kredit-, prémium alkatrész- és többtermékes csomagok.
 
 ## 2.2 frissítés
@@ -159,3 +159,21 @@ Fontos: a repositoryba a fájlok kerüljenek közvetlenül, ne egy újabb `VoltM
 - a passzív csapattagok kredit mellett kis mennyiségű XP-t is termelnek;
 - új, különálló NovaForm 3D-nyomtató grafika;
 - magyar és angol feliratok, valamint telefonra és asztali gépre optimalizált új felületek.
+
+## 4.3 javított termékek, XP és Tech jutalomsor
+
+- A készre szerelt eszközök már „Megjavított”, illetve 3D-nyomtatott termékeknél „Elkészült” néven jelennek meg; az angol nevek is frissültek.
+- A három passzív alkalmazott XP-termelése 25-szörösére nőtt; a globális XP-bónusszal ténylegesen 26, 53 és 79 XP-t adnak percenként.
+- Minden szabadpiaci eladás és elfogadott bolti licit külön, a termékhez igazodó XP-t is ad.
+- A Tech jutalomsor húsz garantált nyereményt tartalmaz, előre látható sorrendben, tét és véletlen eredmény nélkül.
+- A 15 perces aktiválás végén jelenik meg a középre ugró jutalomkártya, a modern konfetti és a rövid szintetizált hang.
+- A jutalom csak az aktiválási animáció tényleges befejezése után kerül a mentésbe és a játékos készletébe.
+- A felület külön telefonos és asztali tördelést kapott, a régi böngészőgyorsítótárat a 4.3-as fájlverzió kerüli meg.
+
+## 4.4 mobil fejléc és XP-egyensúly
+
+- A mobil fejléc külön, kompakt CR-panelt kapott, így a hosszú egyenleg nem lóg rá a VoltMarket logóra.
+- A logó, a nyelvváltó és a kosár keskeny iPhone- és Android-kijelzőn is együtt látható marad.
+- Minden megszerzett XP – munkák, diagnosztika, összeszerelés, ügyfelek, piac, alkalmazottak, üzleti ciklusok és tech jutalmak – egységesen 5%-kal nőtt.
+- A kijelzett XP-értékek minden érintett felületen a ténylegesen jóváírt összeget mutatják.
+- A gyorsítótár frissítését a 4.4-es CSS- és JavaScript-verzió biztosítja.
