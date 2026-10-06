@@ -220,6 +220,7 @@ window.addEventListener('volt-state-changed', (event) => {
     score: Number(event.detail.balance || 0) + Number(event.detail.level || 1) * 10000 + Number(event.detail.xp || 0),
     updatedAt: serverTimestamp(),
   }, { merge: true }).then(() => setSyncStatus('Felhőbe mentve')).catch((error) => { setSyncStatus('Felhőmentés sikertelen'); console.warn('Cloud save failed', error); }), 500);
+  setTimeout(loadLeaderboard, 700);
 });
 
 const leaderboard = document.querySelector('#leaderboard');
