@@ -1,6 +1,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
 import {
   createUserWithEmailAndPassword,
+  sendEmailVerification,
   onAuthStateChanged,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
@@ -28,6 +29,7 @@ const api = {
   auth,
   db,
   createUserWithEmailAndPassword,
+  sendEmailVerification,
   getDoc,
   onAuthStateChanged,
   sendPasswordResetEmail,
@@ -84,6 +86,7 @@ function authError(error) {
     'auth/weak-password': 'A jelszó legalább 6 karakter legyen.',
     'auth/invalid-email': 'Érvénytelen e-mail-cím.',
     'auth/too-many-requests': 'Túl sok próbálkozás. Próbáld meg később.',
+    'auth/user-not-found': 'Hibás e-mail vagy jelszó.',
   };
   return messages[error?.code] || 'A művelet nem sikerült. Ellenőrizd az adatokat.';
 }
@@ -107,7 +110,16 @@ form?.addEventListener('submit', async (event) => {
       const displayName = nameInput.value.trim();
       if (displayName) await updateProfile(credential.user, { displayName });
       await persistNewPlayer(credential.user);
-    } else await signInWithEmailAndPassword(auth, email, password);
+      await sendEmailVerification(credential.user);
+      setStatus('Megerősítő e-mailt küldtünk. Erősítsd meg a címedet, majd jelentkezz be.');
+      await signOut(auth);
+    } else {
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      if (!credential.user.emailVerified) {
+        await signOut(auth);
+        setStatus('A belépéshez előbb erősítsd meg az e-mail-címedet.');
+      }
+    }
   } catch (error) { setStatus(authError(error)); }
   finally { submitButton.disabled = false; }
 });
@@ -124,6 +136,11 @@ logoutButton?.addEventListener('click', async () => {
   catch (error) { console.warn('Logout failed', error); logoutButton.disabled = false; }
 });
 onAuthStateChanged(auth, async (user) => {
+  if (user && !user.emailVerified) {
+    if (!isAuthPage) window.location.replace('./auth.html');
+    setStatus('A belépéshez erősítsd meg az e-mail-címedet.');
+    return;
+  }
   if (user && isAuthPage) {
     window.location.replace('./index.html');
     return;
@@ -150,6 +167,7 @@ onAuthStateChanged(auth, async (user) => {
       updatedAt: serverTimestamp(),
     }, { merge: true });
     setSyncStatus('Firebase-szinkronizáció aktív');
+    await loadLeaderboard();
     if (snapshot.exists() && snapshot.data().gameState) {
       localStorage.setItem('voltmarket-save', JSON.stringify(snapshot.data().gameState));
       if (!sessionStorage.getItem('volt-cloud-restored')) {
@@ -199,6 +217,19 @@ window.addEventListener('volt-state-changed', (event) => {
     level: Number(event.detail.level || 1),
     xp: Number(event.detail.xp || 0),
     balance: Number(event.detail.balance || 0),
+    score: Number(event.detail.balance || 0) + Number(event.detail.level || 1) * 10000 + Number(event.detail.xp || 0),
     updatedAt: serverTimestamp(),
   }, { merge: true }).then(() => setSyncStatus('Felhőbe mentve')).catch((error) => { setSyncStatus('Felhőmentés sikertelen'); console.warn('Cloud save failed', error); }), 500);
 });
+
+const leaderboard = document.querySelector('#leaderboard');
+const escapeHtml = (value = '') => String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+async function loadLeaderboard() {
+  if (!leaderboard || !auth.currentUser?.emailVerified) return;
+  try {
+    const snapshot = await getDocs(collection(db, 'players'));
+    const scoreOf = (player) => Number(player.score || (player.balance || 0) + (player.level || 1) * 10000 + (player.xp || 0));
+    const players = snapshot.docs.map((item) => item.data()).sort((a, b) => scoreOf(b) - scoreOf(a));
+    leaderboard.innerHTML = players.length ? `<div class="leaderboard-podium">${players.slice(0, 3).map((player, index) => `<article class="leader-card rank-${index + 1}"><span class="leader-rank">${index + 1}</span><strong>${escapeHtml(player.displayName || 'Névtelen játékos')}</strong><small>${scoreOf(player).toLocaleString('hu-HU')} pont</small></article>`).join('')}</div><div class="leaderboard-list">${players.slice(3).map((player, index) => `<div class="leader-row"><span>${index + 4}.</span><strong>${escapeHtml(player.displayName || 'Névtelen játékos')}</strong><small>${scoreOf(player).toLocaleString('hu-HU')} pont</small></div>`).join('')}</div>` : '<p class="leaderboard-empty">Még nincs rangsorolt játékos.</p>';
+  } catch (error) { leaderboard.innerHTML = '<p class="leaderboard-empty">A ranglista most nem tölthető be.</p>'; console.warn('Leaderboard failed', error); }
+}
