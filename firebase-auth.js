@@ -54,6 +54,7 @@ const passwordInput = document.querySelector('#authPassword');
 const submitButton = document.querySelector('#authSubmit');
 const modeButton = document.querySelector('#authMode');
 const resetButton = document.querySelector('#authReset');
+const verifyButton = document.querySelector('#authVerify');
 const status = document.querySelector('#authStatus');
 const logoutButton = document.querySelector('#logoutButton');
 const accountName = document.querySelector('#accountName');
@@ -77,6 +78,7 @@ function setMode(next) {
   submitButton.textContent = registerMode ? 'Regisztráció' : 'Belépés';
   modeButton.textContent = registerMode ? 'Már van profilom' : 'Új profil létrehozása';
   resetButton.hidden = registerMode;
+  if (verifyButton) verifyButton.hidden = true;
   setStatus('');
 }
 function authError(error) {
@@ -111,13 +113,13 @@ form?.addEventListener('submit', async (event) => {
       if (displayName) await updateProfile(credential.user, { displayName });
       await persistNewPlayer(credential.user);
       await sendEmailVerification(credential.user);
-      setStatus('Megerősítő e-mailt küldtünk. Erősítsd meg a címedet, majd jelentkezz be.');
-      await signOut(auth);
+      setStatus('Megerősítő e-mailt küldtünk. Ellenőrizd a postafiókodat.');
+      if (verifyButton) verifyButton.hidden = false;
     } else {
       const credential = await signInWithEmailAndPassword(auth, email, password);
       if (!credential.user.emailVerified) {
-        await signOut(auth);
         setStatus('A belépéshez előbb erősítsd meg az e-mail-címedet.');
+        if (verifyButton) verifyButton.hidden = false;
       }
     }
   } catch (error) { setStatus(authError(error)); }
@@ -139,6 +141,7 @@ onAuthStateChanged(auth, async (user) => {
   if (user && !user.emailVerified) {
     if (!isAuthPage) window.location.replace('./auth.html');
     setStatus('A belépéshez erősítsd meg az e-mail-címedet.');
+    if (verifyButton) verifyButton.hidden = false;
     return;
   }
   if (user && isAuthPage) {
@@ -176,6 +179,11 @@ onAuthStateChanged(auth, async (user) => {
       }
     }
   } catch (error) { console.warn('Player profile sync failed', error); }
+});
+verifyButton?.addEventListener('click', async () => {
+  if (!auth.currentUser) return setStatus('Előbb add meg az e-mail-címedet és a jelszavadat.');
+  try { await sendEmailVerification(auth.currentUser); setStatus('Az új megerősítő e-mailt elküldtük.'); }
+  catch (error) { setStatus(authError(error)); }
 });
 accountNameSave?.addEventListener('click', async () => {
   const user = auth.currentUser;
