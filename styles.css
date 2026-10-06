@@ -201,6 +201,7 @@ body.auth-required > *:not(#authGate) { display: none !important; }
 .auth-card h1 { margin: 8px 0 10px; font-size: clamp(2rem, 8vw, 3.2rem); line-height: 1; }
 .auth-card p { color: #aab7c7; }
 .auth-field { display: grid; gap: 7px; margin: 16px 0; color: #c8d4e2; font-size: .9rem; }
+.auth-field[hidden] { display: none !important; }
 .auth-field input { width: 100%; padding: 13px 14px; border: 1px solid #334154; border-radius: 10px; color: #f4f7fb; background: #121722; font: inherit; }
 .auth-field input:focus { outline: 2px solid rgba(0,229,255,.6); outline-offset: 1px; }
 .auth-link { display: block; margin: 14px auto 0; border: 0; color: #8aefff; background: transparent; cursor: pointer; font: inherit; }
