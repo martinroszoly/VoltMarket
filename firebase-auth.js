@@ -43,6 +43,7 @@ window.VoltFirebase = api;
 window.dispatchEvent(new CustomEvent('volt-firebase-ready', { detail: api }));
 
 const gate = document.querySelector('#authGate');
+const isAuthPage = /(^|\/)auth\.html$/.test(window.location.pathname);
 const form = document.querySelector('#authForm');
 const nameField = document.querySelector('#authNameField');
 const nameInput = document.querySelector('#authName');
@@ -123,6 +124,14 @@ logoutButton?.addEventListener('click', async () => {
   catch (error) { console.warn('Logout failed', error); logoutButton.disabled = false; }
 });
 onAuthStateChanged(auth, async (user) => {
+  if (user && isAuthPage) {
+    window.location.replace('./index.html');
+    return;
+  }
+  if (!user && !isAuthPage) {
+    window.location.replace('./auth.html');
+    return;
+  }
   document.body.classList.toggle('auth-required', !user);
   if (gate) gate.hidden = Boolean(user);
   if (!user) { setMode(false); setSyncStatus('Nincs bejelentkezett fiók'); return; }
