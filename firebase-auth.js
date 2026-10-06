@@ -78,7 +78,7 @@ function setMode(next) {
   submitButton.textContent = registerMode ? 'Regisztráció' : 'Belépés';
   modeButton.textContent = registerMode ? 'Már van profilom' : 'Új profil létrehozása';
   resetButton.hidden = registerMode;
-  if (verifyButton) verifyButton.hidden = true;
+  if (verifyButton) verifyButton.hidden = registerMode;
   setStatus('');
 }
 function authError(error) {
@@ -181,8 +181,16 @@ onAuthStateChanged(auth, async (user) => {
   } catch (error) { console.warn('Player profile sync failed', error); }
 });
 verifyButton?.addEventListener('click', async () => {
-  if (!auth.currentUser) return setStatus('Előbb add meg az e-mail-címedet és a jelszavadat.');
-  try { await sendEmailVerification(auth.currentUser); setStatus('Az új megerősítő e-mailt elküldtük.'); }
+  try {
+    if (!auth.currentUser) {
+      const email = emailInput.value.trim();
+      const password = passwordInput.value;
+      if (!email || !password) return setStatus('Add meg az e-mail-címedet és a jelszavadat.');
+      await signInWithEmailAndPassword(auth, email, password);
+    }
+    await sendEmailVerification(auth.currentUser);
+    setStatus('Az új megerősítő e-mailt elküldtük. Nézd meg a Spam/Promóciók mappát is.');
+  }
   catch (error) { setStatus(authError(error)); }
 });
 accountNameSave?.addEventListener('click', async () => {
