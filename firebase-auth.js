@@ -8,6 +8,7 @@ import {
   signOut,
   updateProfile,
   getAuth,
+  reload,
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
 import {
   doc,
@@ -38,6 +39,7 @@ const api = {
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
+  reload,
   userDoc: (uid) => doc(db, 'players', uid),
 };
 
@@ -117,6 +119,7 @@ form?.addEventListener('submit', async (event) => {
       if (verifyButton) verifyButton.hidden = false;
     } else {
       const credential = await signInWithEmailAndPassword(auth, email, password);
+      await reload(credential.user);
       if (!credential.user.emailVerified) {
         setStatus('A belépéshez előbb erősítsd meg az e-mail-címedet.');
         if (verifyButton) verifyButton.hidden = false;
