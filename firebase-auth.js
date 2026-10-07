@@ -101,8 +101,22 @@ async function persistNewPlayer(user) {
     displayName: user.displayName || '',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+    verificationRequired: true,
     gameState: null,
+    workshopState: null,
   }, { merge: true });
+}
+async function needsEmailVerification(user) {
+  if (!user || user.emailVerified) return false;
+  try {
+    const snapshot = await getDoc(doc(db, 'players', user.uid));
+    // Profiles created before the verification flow remain usable. New registrations
+    // are marked explicitly and still need to verify once.
+    return snapshot.exists() && snapshot.data().verificationRequired === true;
+  } catch (error) {
+    console.warn('Verification status lookup failed', error);
+    return true;
+  }
 }
 form?.addEventListener('submit', async (event) => {
   event.preventDefault(); setStatus(''); submitButton.disabled = true;
@@ -120,9 +134,11 @@ form?.addEventListener('submit', async (event) => {
     } else {
       const credential = await signInWithEmailAndPassword(auth, email, password);
       await reload(credential.user);
-      if (!credential.user.emailVerified) {
+      if (await needsEmailVerification(credential.user)) {
         setStatus('A belépéshez előbb erősítsd meg az e-mail-címedet.');
         if (verifyButton) verifyButton.hidden = false;
+      } else {
+        await setDoc(doc(db, 'players', credential.user.uid), { verificationRequired: false }, { merge: true });
       }
     }
   } catch (error) { setStatus(authError(error)); }
@@ -141,7 +157,7 @@ logoutButton?.addEventListener('click', async () => {
   catch (error) { console.warn('Logout failed', error); logoutButton.disabled = false; }
 });
 onAuthStateChanged(auth, async (user) => {
-  if (user && !user.emailVerified) {
+  if (user && await needsEmailVerification(user)) {
     if (!isAuthPage) window.location.replace('./auth.html');
     setStatus('A belépéshez erősítsd meg az e-mail-címedet.');
     if (verifyButton) verifyButton.hidden = false;
@@ -171,11 +187,13 @@ onAuthStateChanged(auth, async (user) => {
       displayName: user.displayName || '',
       lastLoginAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
+      verificationRequired: false,
     }, { merge: true });
     setSyncStatus('Firebase-szinkronizáció aktív');
     await loadLeaderboard();
     if (snapshot.exists() && snapshot.data().gameState) {
       localStorage.setItem('voltmarket-save', JSON.stringify(snapshot.data().gameState));
+      if (snapshot.data().workshopState) localStorage.setItem('voltmarket-workshop', JSON.stringify(snapshot.data().workshopState));
       if (!sessionStorage.getItem('volt-cloud-restored')) {
         sessionStorage.setItem('volt-cloud-restored', '1');
         window.location.reload();
@@ -233,6 +251,7 @@ window.addEventListener('volt-state-changed', (event) => {
     email: user.email || '',
     displayName: user.displayName || '',
     gameState: event.detail,
+    workshopState: (() => { try { return JSON.parse(localStorage.getItem('voltmarket-workshop') || 'null'); } catch { return null; } })(),
     level: Number(event.detail.level || 1),
     xp: Number(event.detail.xp || 0),
     balance: Number(event.detail.balance || 0),
@@ -241,15 +260,66 @@ window.addEventListener('volt-state-changed', (event) => {
   }, { merge: true }).then(() => setSyncStatus('Felhőbe mentve')).catch((error) => { setSyncStatus('Felhőmentés sikertelen'); console.warn('Cloud save failed', error); }), 500);
   setTimeout(loadLeaderboard, 700);
 });
+window.addEventListener('volt-workshop-changed', (event) => {
+  const user = auth.currentUser;
+  if (!user || !event.detail) return;
+  setDoc(doc(db, 'players', user.uid), { workshopState: event.detail, updatedAt: serverTimestamp() }, { merge: true })
+    .then(() => { setSyncStatus('Felhőbe mentve'); setTimeout(loadLeaderboard, 700); })
+    .catch(error => { setSyncStatus('Felhőmentés sikertelen'); console.warn('Workshop cloud save failed', error); });
+});
 
 const leaderboard = document.querySelector('#leaderboard');
+const businessModal = document.querySelector('#playerBusinessModal');
+const businessModalContent = document.querySelector('#playerBusinessContent');
+const businessModalClose = document.querySelector('#playerBusinessClose');
 const escapeHtml = (value = '') => String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+let leaderboardPlayers = new Map();
+const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+function rankStats(player) {
+  const game = player.gameState && typeof player.gameState === 'object' ? player.gameState : {};
+  const workshop = player.workshopState && typeof player.workshopState === 'object' ? player.workshopState : {};
+  const balance = finite(game.balance, finite(player.balance));
+  const level = Math.max(1, finite(game.level, finite(player.level, 1)));
+  const xp = Math.max(0, finite(game.xp, finite(player.xp)));
+  const owned = Array.isArray(game.owned) ? game.owned.length : 0;
+  const finished = Array.isArray(workshop.finished) ? workshop.finished.length : (Array.isArray(game.history) ? game.history.filter(item => finite(item?.amount) > 0).length : 0);
+  // Always derive the score from the newest saved gameState instead of trusting
+  // an old denormalized score field in Firestore.
+  const score = Math.max(0, Math.round(balance + level * 10000 + xp + owned * 5000 + finished * 2500));
+  return { balance, level, xp, owned, finished, score, game, workshop };
+}
+function renderBusinessProfile(player) {
+  if (!businessModalContent) return;
+  const stats = rankStats(player);
+  const game = stats.game;
+  const workshop = stats.workshop;
+  const equipment = Array.isArray(game.owned) ? game.owned : [];
+  const projects = Array.isArray(workshop.projects) ? workshop.projects.length : 0;
+  const finished = Array.isArray(workshop.finished) ? workshop.finished.length : stats.finished;
+  const employees = Array.isArray(workshop.employees) ? workshop.employees.length : 0;
+  const technicians = finite(workshop.repairCrewHired) + finite(workshop.customerCrewHired);
+  const stores = [workshop.storeOwned && 'Alapüzlet', workshop.franchiseOwned && 'Franchise üzlet', workshop.flagshipOwned && 'Prémium üzlet'].filter(Boolean);
+  const name = escapeHtml(player.displayName || 'Névtelen játékos');
+  businessModalContent.innerHTML = `<div class="business-profile-kicker">VOLTMarket üzleti profil</div><h2>${name} üzlete</h2><p class="business-profile-intro">Itt látható röviden, hol tart ez a játékos a fejlesztésben és a bevételben.</p><div class="business-profile-stats"><div><span>HELYEZÉS</span><strong>#${player.rank || '–'}</strong></div><div><span>SZINT</span><strong>${stats.level}</strong></div><div><span>KREDIT</span><strong>${stats.balance.toLocaleString('hu-HU')} CR</strong></div><div><span>XP</span><strong>${stats.xp.toLocaleString('hu-HU')}</strong></div></div><div class="business-profile-grid"><article><span class="eyebrow">FEJLŐDÉS</span><p>${equipment} felszerelés · ${stats.finished} teljesített eredmény</p><p>${projects} aktív projekt · ${finished} kész termék</p></article><article><span class="eyebrow">CSAPAT ÉS ÜZLETEK</span><p>${employees} alap munkatárs · ${technicians} szerviztechnikus</p><p>${stores.length ? stores.join(' · ') : 'Még csak az alapüzlet épül'}</p></article></div>`;
+  businessModal.hidden = false;
+  businessModal.setAttribute('aria-hidden', 'false');
+}
+function closeBusinessProfile() {
+  if (!businessModal) return;
+  businessModal.hidden = true;
+  businessModal.setAttribute('aria-hidden', 'true');
+}
+businessModalClose?.addEventListener('click', closeBusinessProfile);
+businessModal?.addEventListener('click', event => { if (event.target === businessModal) closeBusinessProfile(); });
+document.addEventListener('keydown', event => { if (event.key === 'Escape') closeBusinessProfile(); });
 async function loadLeaderboard() {
-  if (!leaderboard || !auth.currentUser?.emailVerified) return;
+  if (!leaderboard || !auth.currentUser) return;
   try {
     const snapshot = await getDocs(collection(db, 'players'));
-    const scoreOf = (player) => Number(player.score || (player.balance || 0) + (player.level || 1) * 10000 + (player.xp || 0));
-    const players = snapshot.docs.map((item) => item.data()).sort((a, b) => scoreOf(b) - scoreOf(a));
-    leaderboard.innerHTML = players.length ? `<div class="leaderboard-podium">${players.slice(0, 3).map((player, index) => `<article class="leader-card rank-${index + 1}"><span class="leader-rank">${index + 1}</span><strong>${escapeHtml(player.displayName || 'Névtelen játékos')}</strong><small>${scoreOf(player).toLocaleString('hu-HU')} pont</small></article>`).join('')}</div><div class="leaderboard-list">${players.slice(3).map((player, index) => `<div class="leader-row"><span>${index + 4}.</span><strong>${escapeHtml(player.displayName || 'Névtelen játékos')}</strong><small>${scoreOf(player).toLocaleString('hu-HU')} pont</small></div>`).join('')}</div>` : '<p class="leaderboard-empty">Még nincs rangsorolt játékos.</p>';
+    const players = snapshot.docs.map(item => ({ ...item.data(), uid: item.id })).sort((a, b) => rankStats(b).score - rankStats(a).score || rankStats(b).level - rankStats(a).level || String(a.displayName || '').localeCompare(String(b.displayName || ''), 'hu'));
+    leaderboardPlayers = new Map(players.map((player, index) => [player.uid, { ...player, rank: index + 1 }]));
+    const playerButton = (player, index, className = '') => `<button type="button" class="${className}" data-player-profile="${escapeHtml(player.uid)}"><span class="leader-rank">${index + 1}</span><strong>${escapeHtml(player.displayName || 'Névtelen játékos')}</strong><small>${rankStats(player).score.toLocaleString('hu-HU')} pont</small></button>`;
+    leaderboard.innerHTML = players.length ? `<div class="leaderboard-podium">${players.slice(0, 3).map((player, index) => playerButton(player, index, `leader-card rank-${index + 1}`)).join('')}</div><div class="leaderboard-list">${players.slice(3).map((player, index) => `<button type="button" class="leader-row" data-player-profile="${escapeHtml(player.uid)}"><span>${index + 4}.</span><strong>${escapeHtml(player.displayName || 'Névtelen játékos')}</strong><small>${rankStats(player).score.toLocaleString('hu-HU')} pont</small></button>`).join('')}</div>` : '<p class="leaderboard-empty">Még nincs rangsorolt játékos.</p>';
   } catch (error) { leaderboard.innerHTML = '<p class="leaderboard-empty">A ranglista most nem tölthető be.</p>'; console.warn('Leaderboard failed', error); }
 }
+leaderboard?.addEventListener('click', event => { const target = event.target.closest('[data-player-profile]'); const player = target && leaderboardPlayers.get(target.dataset.playerProfile); if (player) renderBusinessProfile(player); });
