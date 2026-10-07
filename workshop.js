@@ -19,7 +19,7 @@ const emptyWorkshop={parts:{},projects:[],finished:[],marketListings:[],nextId:1
 let workshop=loadWorkshop(),game={mode:null,projectId:null,index:0,sequence:[]},wheelBusy=false;
 function migrateParts(parts={}){const result={};Object.entries(parts).forEach(([id,value])=>{result[id]=typeof value==='number'?{used:0,normal:value,premium:0}:{used:0,normal:0,premium:0,...value}});return result}
 function loadWorkshop(){try{const saved=JSON.parse(localStorage.getItem('voltmarket-workshop')||'{}');return {...emptyWorkshop,...saved,parts:migrateParts(saved.parts),projects:saved.projects||[],finished:saved.finished||[],marketListings:saved.marketListings||[],employees:saved.employees||[],employeeTimers:saved.employeeTimers||{},storeUpgrades:saved.storeUpgrades||[],storeStaff:saved.storeStaff||[]}}catch{return {...emptyWorkshop,parts:{},projects:[],finished:[],marketListings:[],employees:[],employeeTimers:{},storeUpgrades:[],storeStaff:[]}}}
-function saveWorkshop(){localStorage.setItem('voltmarket-workshop',JSON.stringify(workshop));renderWorkshop();renderEmployees();renderStore();updateWheel()}
+function saveWorkshop(){localStorage.setItem('voltmarket-workshop',JSON.stringify(workshop));window.dispatchEvent(new CustomEvent('volt-workshop-changed',{detail:workshop}));renderWorkshop();renderEmployees();renderStore();updateWheel()}
 function stock(id,q='normal'){return workshop.parts[id]?.[q]||0}
 function ensurePart(id){workshop.parts[id]??={used:0,normal:0,premium:0};return workshop.parts[id]}
 function partName(id){return workshopParts.find(p=>p.id===id)?.name||id}
