@@ -2,26 +2,29 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'martin.roszoly2002@gmail.com';
+    }
       match /players/{userId} {
         allow read: if request.auth != null;
         allow write: if request.auth != null
           && (request.auth.uid == userId
-            || request.auth.token.email == 'martin.roszoly2002@gmail.com');
+            || isAdmin());
     }
     match /bannedEmails/{email} {
       allow read: if true;
-      allow write: if request.auth != null
-        && request.auth.token.email == 'martin.roszoly2002@gmail.com';
+      allow write: if isAdmin();
     }
     match /supportMessages/{messageId} {
       allow create: if request.auth != null
         && (request.resource.data.uid == request.auth.uid
-          || request.auth.token.email == 'martin.roszoly2002@gmail.com');
+          || isAdmin());
       allow read: if request.auth != null
-        && (request.auth.token.email == 'martin.roszoly2002@gmail.com'
+        && (isAdmin()
           || resource.data.uid == request.auth.uid);
       allow update, delete: if request.auth != null
-        && request.auth.token.email == 'martin.roszoly2002@gmail.com';
+        && isAdmin();
     }
   }
 }
