@@ -158,6 +158,26 @@ async function needsEmailVerification(user) {
     return true;
   }
 }
+async function isEmailBanned(email, uid = '') {
+  const normalized = String(email || '').trim().toLowerCase();
+  if (!normalized || normalized === ADMIN_EMAIL) return false;
+  try {
+    const direct = await getDoc(doc(db, 'bannedEmails', normalized));
+    if (direct.exists()) return true;
+  } catch (error) { console.warn('Direct ban lookup failed', error); }
+  try {
+    if (uid) {
+      const player = await getDoc(doc(db, 'players', uid));
+      if (player.data()?.banned === true) return true;
+    }
+  } catch (error) { console.warn('Player ban lookup failed', error); }
+  // Fallback registry lives on the admin's own document. It remains writable
+  // even when the optional bannedEmails collection rule has not propagated.
+  try {
+    const admins = await getDocs(query(collection(db, 'players'), where('email', '==', ADMIN_EMAIL)));
+    return admins.docs.some(item => Array.isArray(item.data()?.bannedEmails) && item.data().bannedEmails.map(value => String(value).toLowerCase()).includes(normalized));
+  } catch (error) { console.warn('Admin ban registry lookup failed', error); return false; }
+}
 form?.addEventListener('submit', async (event) => {
   event.preventDefault(); setStatus(''); submitButton.disabled = true;
   try {
@@ -166,14 +186,9 @@ form?.addEventListener('submit', async (event) => {
     if (registerMode) {
       // A tiltólista ellenőrzése nem blokkolhatja a regisztrációt akkor sem,
       // ha a Firestore-szabályok még propagálódnak vagy átmenetileg nem érhetők el.
-      try {
-        const banned = await getDoc(doc(db, 'bannedEmails', email.toLowerCase()));
-        if (banned.exists()) {
-          setStatus('Ezzel az e-mail-címmel nem lehet új profilt létrehozni.');
-          return;
-        }
-      } catch (banError) {
-        console.warn('Banned email lookup skipped', banError);
+      if (await isEmailBanned(email)) {
+        setStatus('Ezzel az e-mail-címmel nem lehet új profilt létrehozni.');
+        return;
       }
       const credential = await createUserWithEmailAndPassword(auth, email, password);
       const displayName = nameInput.value.trim();
@@ -231,15 +246,10 @@ onAuthStateChanged(auth, async (user) => {
   clearTimeout(authRedirectTimer);
   clearInterval(remoteStateTimer);
   if (!user) activatePlayerStorage(null, true);
-  if (user?.email) {
-    try {
-      const banned = await getDoc(doc(db, 'bannedEmails', user.email.toLowerCase()));
-      if (banned.exists()) {
-        await signOut(auth);
-        if (isAuthPage) { setStatus('Ez az e-mail-cím bannolva van, a fiók nem használható.'); if (bannedModal) bannedModal.hidden = false; }
-        return;
-      }
-    } catch (banError) { console.warn('Banned account lookup skipped', banError); }
+  if (user?.email && await isEmailBanned(user.email, user.uid)) {
+    await signOut(auth);
+    if (isAuthPage) { setStatus('Ez az e-mail-cím bannolva van, a fiók nem használható.'); if (bannedModal) bannedModal.hidden = false; }
+    return;
   }
   if (user && await needsEmailVerification(user)) {
     if (!isAuthPage) window.location.replace('./auth.html');
@@ -314,7 +324,14 @@ onAuthStateChanged(auth, async (user) => {
     setSyncStatus('Firebase-szinkronizáció aktív');
     await loadLeaderboard();
     if (snapshot.exists() && snapshot.data().gameState) {
-      window.VoltStorage?.set('voltmarket-save', JSON.stringify(snapshot.data().gameState));
+      const restoredGameState = { ...snapshot.data().gameState };
+      const adminOverride = snapshot.data().adminOverride;
+      // An admin edit is authoritative on the next login. Once the player
+      // makes a normal game save, the override is cleared below.
+      if (adminOverride && Number.isFinite(Number(adminOverride.level))) restoredGameState.level = Math.max(1, Math.round(Number(adminOverride.level)));
+      if (adminOverride && Number.isFinite(Number(adminOverride.balance))) restoredGameState.balance = Math.max(0, Math.round(Number(adminOverride.balance)));
+      if (adminOverride && Number.isFinite(Number(adminOverride.xp))) restoredGameState.xp = Math.max(0, Math.round(Number(adminOverride.xp)));
+      window.VoltStorage?.set('voltmarket-save', JSON.stringify(restoredGameState));
       if (snapshot.data().workshopState) window.VoltStorage?.set('voltmarket-workshop', JSON.stringify(snapshot.data().workshopState));
     }
     activatePlayerStorage(user.uid, true);
@@ -457,8 +474,14 @@ adminPlayers?.addEventListener('click', async (event) => {
   const targetRef = doc(db, 'players', row.dataset.adminUid);
   if (event.target.closest('.admin-save-player')) {
     const name = row.querySelector('.admin-name')?.value.trim() || 'Névtelen';
-    const level = Math.max(1, Math.round(finite(row.querySelector('.admin-level')?.value, 1)));
-    const balance = Math.max(0, Math.round(finite(row.querySelector('.admin-balance')?.value, 0)));
+    const levelInput = Number(row.querySelector('.admin-level')?.value);
+    const balanceInput = Number(row.querySelector('.admin-balance')?.value);
+    if (!Number.isFinite(levelInput) || !Number.isFinite(balanceInput)) {
+      toast('A szint és a kredit mezőben érvényes számnak kell lennie.');
+      return;
+    }
+    const level = Math.min(999, Math.max(1, Math.round(levelInput)));
+    const balance = Math.max(0, Math.round(balanceInput));
     try {
       const snapshot = await getDoc(targetRef);
       const current = snapshot.exists() ? snapshot.data() : {};
@@ -466,11 +489,23 @@ adminPlayers?.addEventListener('click', async (event) => {
       // change so the normal progression loop cannot immediately level it back
       // up from stale XP stored in the previous game state.
       const gameState = { ...(current.gameState || {}), level, balance, xp: 0 };
-      await setDoc(targetRef, { displayName: name, level, balance, gameState, updatedAt: serverTimestamp() }, { merge: true });
+      await setDoc(targetRef, {
+        displayName: name,
+        level,
+        balance,
+        xp: 0,
+        gameState,
+        adminOverride: { level, balance, xp: 0, updatedAt: Date.now() },
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      const saved = await getDoc(targetRef);
+      const savedState = saved.data()?.gameState || {};
+      if (Number(savedState.level) !== level || Number(savedState.balance) !== balance) throw new Error('Admin state verification failed');
       if (targetRef.id === auth.currentUser.uid) {
         window.VoltStorage?.set('voltmarket-save', JSON.stringify(gameState));
+        window.dispatchEvent(new CustomEvent('volt-user-changed', { detail: { uid: targetRef.id } }));
         sessionStorage.setItem('volt-cloud-restored-user', auth.currentUser.uid);
-        setSyncStatus('Saját profil frissítve. Az új értékek a következő belépéskor töltődnek be.');
+        setSyncStatus('Saját profil frissítve.');
         toast('A saját játékosprofilod frissítve.');
         return;
       }
@@ -483,16 +518,29 @@ adminPlayers?.addEventListener('click', async (event) => {
     catch (error) { console.warn('Admin player delete failed', error); toast('A játékos profilja nem törölhető.'); }
   }
   if (event.target.closest('.admin-ban-player')) {
-    const email = (row.dataset.adminEmail || row.querySelector('.admin-player-main small')?.textContent || '').trim().toLowerCase();
+    const emailFromRow = (row.dataset.adminEmail || row.querySelector('.admin-player-main small')?.textContent || '').trim().toLowerCase();
+    let email = emailFromRow;
+    try {
+      const current = await getDoc(targetRef);
+      email = String(current.data()?.email || emailFromRow).trim().toLowerCase();
+    } catch (error) { console.warn('Could not read canonical player email', error); }
+    if (email === ADMIN_EMAIL) return toast('Az adminfiók nem bannolható.');
     if (!email || !confirm(`Bannolod a(z) ${email} címet? Ezzel később sem lehet új profilt regisztrálni.`)) return;
     try {
-      const banRecord = { email, uid: row.dataset.adminUid, bannedAt: serverTimestamp(), bannedBy: auth.currentUser.email };
-      try { await setDoc(doc(db, 'bannedEmails', email), banRecord, { merge: true }); }
-      catch (banRecordError) { console.warn('Banned e-mail registry write failed; using player flag fallback', banRecordError); }
-      // Keep a small tombstone on the player document as a reliable fallback.
-      // This also prevents the account from becoming available if the optional
-      // bannedEmails collection rule has not been published yet.
-      await setDoc(targetRef, { banned: true, bannedAt: serverTimestamp(), bannedBy: auth.currentUser.email }, { merge: true });
+      const banRecord = { email, uid: row.dataset.adminUid, bannedAt: Date.now(), bannedBy: auth.currentUser.email };
+      let registrySaved = false;
+      let directSaved = false;
+      let playerFlagSaved = false;
+      try {
+        await setDoc(doc(db, 'players', auth.currentUser.uid), { bannedEmails: arrayUnion(email), updatedAt: serverTimestamp() }, { merge: true });
+        registrySaved = true;
+      } catch (registryError) { console.warn('Admin ban registry write failed', registryError); }
+      try { await setDoc(doc(db, 'bannedEmails', email), banRecord, { merge: true }); directSaved = true; }
+      catch (banRecordError) { console.warn('Banned e-mail collection write failed; using registry fallback', banRecordError); }
+      // Keep a tombstone on the target profile as an additional fallback.
+      try { await setDoc(targetRef, { banned: true, bannedAt: serverTimestamp(), bannedBy: auth.currentUser.email }, { merge: true }); playerFlagSaved = true; }
+      catch (playerFlagError) { console.warn('Player ban flag write failed; registry fallback remains active', playerFlagError); }
+      if (!registrySaved && !directSaved && !playerFlagSaved) throw new Error('No ban record could be written');
       row.remove();
       await loadLeaderboard();
       toast('Az e-mail-cím bannolva.');
@@ -511,6 +559,7 @@ window.addEventListener('volt-state-changed', (event) => {
     email: user.email || '',
     displayName: user.displayName || '',
     gameState: event.detail,
+    adminOverride: null,
     workshopState: (() => { try { return JSON.parse(window.VoltStorage?.get('voltmarket-workshop') || 'null'); } catch { return null; } })(),
     level: Number(event.detail.level || 1),
     xp: Number(event.detail.xp || 0),
