@@ -554,19 +554,33 @@ window.addEventListener('volt-state-changed', (event) => {
   if (!user || !event.detail) return;
   setSyncStatus('Mentés a felhőbe…');
   clearTimeout(syncTimer);
-  syncTimer = setTimeout(() => setDoc(doc(db, 'players', user.uid), {
-    uid: user.uid,
-    email: user.email || '',
-    displayName: user.displayName || '',
-    gameState: event.detail,
-    adminOverride: null,
-    workshopState: (() => { try { return JSON.parse(window.VoltStorage?.get('voltmarket-workshop') || 'null'); } catch { return null; } })(),
-    level: Number(event.detail.level || 1),
-    xp: Number(event.detail.xp || 0),
-    balance: Number(event.detail.balance || 0),
-    score: Number(event.detail.balance || 0) + Number(event.detail.level || 1) * 10000 + Number(event.detail.xp || 0),
-    updatedAt: serverTimestamp(),
-  }, { merge: true }).then(() => setSyncStatus('Felhőbe mentve')).catch((error) => { setSyncStatus('Felhőmentés sikertelen'); console.warn('Cloud save failed', error); }), 500);
+  syncTimer = setTimeout(async () => {
+    try {
+      const playerRef = doc(db, 'players', user.uid);
+      const current = await getDoc(playerRef);
+      const override = current.data()?.adminOverride;
+      const nextState = { ...event.detail };
+      // If an older tab sends its stale state after an admin edit, preserve the
+      // freshly edited values once, then clear the override normally.
+      if (override && Number.isFinite(Number(override.level))) nextState.level = Math.max(1, Math.round(Number(override.level)));
+      if (override && Number.isFinite(Number(override.balance))) nextState.balance = Math.max(0, Math.round(Number(override.balance)));
+      if (override && Number.isFinite(Number(override.xp))) nextState.xp = Math.max(0, Math.round(Number(override.xp)));
+      await setDoc(playerRef, {
+        uid: user.uid,
+        email: user.email || '',
+        displayName: user.displayName || '',
+        gameState: nextState,
+        adminOverride: null,
+        workshopState: (() => { try { return JSON.parse(window.VoltStorage?.get('voltmarket-workshop') || 'null'); } catch { return null; } })(),
+        level: Number(nextState.level || 1),
+        xp: Number(nextState.xp || 0),
+        balance: Number(nextState.balance || 0),
+        score: Number(nextState.balance || 0) + Number(nextState.level || 1) * 10000 + Number(nextState.xp || 0),
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      setSyncStatus('Felhőbe mentve');
+    } catch (error) { setSyncStatus('Felhőmentés sikertelen'); console.warn('Cloud save failed', error); }
+  }, 500);
   setTimeout(loadLeaderboard, 700);
 });
 window.addEventListener('volt-workshop-changed', (event) => {
