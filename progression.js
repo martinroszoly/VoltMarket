@@ -41,6 +41,7 @@ const vmDefaults = {
   customerCrewJobs: [null, null, null],
   jobTechHired: false,
   jobTechJob: null,
+  jobTechCursor: 0,
   employeeXpNextAt: 0,
   franchiseOwned: false,
   franchiseUpgrades: [],
@@ -309,11 +310,10 @@ function renderServiceCenter() {
 }
 
 function vmRenderJobTechnician(){
-  if(!workshop.jobTechHired)return `<article class="employee-card managed-worker"><span class="employee-icon">⌁</span><span class="category">LEVEL 45 // JOB DESK</span><h3>${vmText('Feladatkezelő technikus','Task Operations Technician')}</h3><p>${vmText('Egy kiválasztott munkát végez el, majd megáll. A teljes jutalom a tiéd.','Completes one selected job, then stops. You receive the full reward.')}</p><div class="employee-foot"><strong>${fmt(VM4.jobTechPrice)} CR</strong><button class="primary hire-job-tech">${vmText('Felvétel','Hire')}</button></div></article>`;
+  if(!workshop.jobTechHired)return `<article class="employee-card managed-worker"><span class="employee-icon">⌁</span><span class="category">LEVEL 45 // JOB DESK</span><h3>${vmText('Feladatkezelő technikus','Task Operations Technician')}</h3><p>${vmText('A feloldott munkákon automatikusan, sorban halad végig, nagyon lassú tempóban.','Works through unlocked jobs automatically and in order, at a very slow pace.')}</p><div class="employee-foot"><strong>${fmt(VM4.jobTechPrice)} CR</strong><button class="primary hire-job-tech">${vmText('Felvétel','Hire')}</button></div></article>`;
   const task=workshop.jobTechJob;
   if(task){const j=jobs.find(x=>x.id===task.jobId);return `<article class="employee-card managed-worker busy"><span class="employee-icon">${j?.icon||'⌁'}</span><span class="category">${vmText('MUNKA FOLYAMATBAN','JOB IN PROGRESS')}</span><h3>${j?getJobMeta(j.id).name:''}</h3><div class="employee-progress"><span style="width:${vmWorkerProgress(task)}%"></span></div><small>${Math.max(0,Math.ceil((task.readyAt-Date.now())/1000))} ${vmText('mp','sec')}</small></article>`}
-  const options=jobs.filter(requirements).map(j=>`<option value="${j.id}">${getJobMeta(j.id).name} · ${fmt(jobCreditReward(j))} CR</option>`).join('');
-  return `<article class="employee-card managed-worker"><span class="employee-icon">⌁</span><span class="category">${vmText('SZABAD','AVAILABLE')}</span><h3>${vmText('Feladatkezelő technikus','Task Operations Technician')}</h3><div class="repair-controls"><select id="vm-job-tech-select">${options}</select><button class="primary start-job-tech">${vmText('Kiválasztott munka indítása','Start selected job')}</button></div></article>`;
+  return `<article class="employee-card managed-worker"><span class="employee-icon">⌁</span><span class="category">${vmText('AUTOMATIKUS SOR','AUTOMATIC QUEUE')}</span><h3>${vmText('Feladatkezelő technikus','Task Operations Technician')}</h3><p>${vmText('A feloldott munkákon sorban halad végig. Nem kell munkát választanod vagy elindítanod.','He works through unlocked jobs in order. You do not need to choose or start a job.')}</p><div class="employee-benefit">⌛ ${vmText('Nagyon lassú, folyamatos munkafolyamat','Very slow, continuous workflow')}</div><small>${vmText('A következő munka automatikusan indul, amikor az előző elkészült.','The next job starts automatically when the previous one is complete.')}</small></article>`;
 }
 
 function vmHireWorker(kind,index){if(state.level<45)return;const current=kind==='customer'?workshop.customerCrewHired:workshop.repairCrewHired;if(index!==current){VMSound?.('deny');return toast(vmText('Előbb az előző alkalmazottat kell felvenned.','Hire the previous technician first.'))}const price=(kind==='customer'?VM4.customerPrices:VM4.repairPrices)[index];if(state.balance<price){VMSound?.('deny');return toast(vmText('Nincs elég kredited.','Not enough credit.'))}state.balance-=price;if(kind==='customer')workshop.customerCrewHired++;else workshop.repairCrewHired++;addHistory(vmText('Új szerviztechnikus','New service technician'),-price);VMSound?.('complete');vmCommit(vmText('Az új technikus munkára kész.','The new technician is ready.'))}
@@ -328,10 +328,32 @@ function vmTickWorkers(){
   while(workshop.repairCrewJobs.length<3)workshop.repairCrewJobs.push(null);
   while(workshop.customerCrewJobs.length<3)workshop.customerCrewJobs.push(null);
   for(const kind of ['repair','customer']){const list=kind==='customer'?workshop.customerCrewJobs:workshop.repairCrewJobs;const hired=kind==='customer'?workshop.customerCrewHired:workshop.repairCrewHired;for(let index=0;index<hired;index++){if(list[index])continue;const p=workshop.projects.find(item=>!item.assignedWorker&&(kind==='customer'?item.source==='customer':item.source!=='customer'));if(!p)continue;p.assignedWorker=`${kind}-${index}`;list[index]={projectId:p.uid,quality:kind==='customer'?(p.quality||'normal'):'normal',status:'diagnosing',startedAt:Date.now(),readyAt:Date.now()+60000};}list.forEach((job,index)=>{if(!job)return;const p=projectByUid(job.projectId),b=p&&blueprint(p.type);if(!p||!b){list[index]=null;return}if(job.status==='assigned'){vmStartWorkerDiagnostic(kind,index)}else if(job.status==='diagnosing'&&Date.now()>=job.readyAt){p.diagnosed=true;job.status='assemblyReady';VMSound?.('complete');toast(vmText('Egy alkalmazotti diagnosztika elkészült. Az összeszerelés automatikusan indul.','A technician diagnosis is complete. Assembly will start automatically.'))}else if(job.status==='assemblyReady'){vmStartWorkerAssembly(kind,index)}else if(job.status==='assembling'&&Date.now()>=job.readyAt){workshop.projects=workshop.projects.filter(x=>x.uid!==p.uid);workshop.finished.push({type:p.type,quality:job.quality,source:p.source||'self',orderId:p.orderId||null,reward:p.reward||0,investment:(p.investment||0)+(job.partsCost||0),completed:Date.now()});const gainedXp=grantXp(45);list[index]=null;VMSound?.('jobDone');toast(vmText(`Egy alkalmazott befejezte az összeszerelést: +${gainedXp} XP`,`A technician completed an assembly: +${gainedXp} XP`))}})}
-  const task=workshop.jobTechJob;if(task&&Date.now()>=task.readyAt){const j=jobs.find(x=>x.id===task.jobId);if(j){const reward=jobCreditReward(j),gainedXp=grantXp(Math.round(j.xp*(1+xpBoost())));state.balance+=reward;VMSound?.('jobDone');addHistory(`${vmText('Munkatechnikus','Job technician')}: ${getJobMeta(j.id).name} (+${gainedXp} XP)`,reward);toast(vmText(`Munkatechnikus: +${fmt(reward)} CR · +${gainedXp} XP`,`Job technician: +${fmt(reward)} CR · +${gainedXp} XP`))}workshop.jobTechJob=null}
+  const task=workshop.jobTechJob;
+  if(!task)vmStartNextJobTech();
+  else if(Date.now()>=task.readyAt){
+    const j=jobs.find(x=>x.id===task.jobId);
+    if(j){const reward=jobCreditReward(j),gainedXp=grantXp(Math.round(j.xp*(1+xpBoost())));state.balance+=reward;VMSound?.('jobDone');addHistory(`${vmText('Munkatechnikus','Job technician')}: ${getJobMeta(j.id).name} (+${gainedXp} XP)`,reward);toast(vmText(`Munkatechnikus: +${fmt(reward)} CR · +${gainedXp} XP`,`Job technician: +${fmt(reward)} CR · +${gainedXp} XP`))}
+    workshop.jobTechJob=null;
+    vmStartNextJobTech();
+  }
 }
 function vmHireJobTech(){if(state.level<45||workshop.jobTechHired)return;if(state.balance<VM4.jobTechPrice){VMSound?.('deny');return toast(vmText('Nincs elég kredited.','Not enough credit.'))}state.balance-=VM4.jobTechPrice;workshop.jobTechHired=true;addHistory(vmText('Feladatkezelő technikus','Task Operations Technician'),-VM4.jobTechPrice);VMSound?.('complete');vmCommit(vmText('A munkatechnikus készen áll.','The job technician is ready.'))}
-function vmStartJobTech(){if(!workshop.jobTechHired||workshop.jobTechJob)return;const j=jobs.find(x=>x.id===document.querySelector('#vm-job-tech-select')?.value);if(!j||!requirements(j))return;const duration=effectiveJobSeconds(j);workshop.jobTechJob={jobId:j.id,startedAt:Date.now(),readyAt:Date.now()+duration*1000};VMSound?.('jobStart');vmCommit(vmText('A kiválasztott munka elindult.','The selected job has started.'))}
+const VM_JOB_TECH_DURATION_MS=5*60*1000;
+function vmStartNextJobTech(){
+  if(!workshop.jobTechHired||workshop.jobTechJob)return false;
+  const total=jobs.length;
+  const cursor=Math.max(0,Number(workshop.jobTechCursor)||0)%total;
+  for(let offset=0;offset<total;offset++){
+    const index=(cursor+offset)%total,j=jobs[index];
+    if(!requirements(j)||state.cooldowns[j.id])continue;
+    const startedAt=Date.now();
+    workshop.jobTechJob={jobId:j.id,startedAt,readyAt:startedAt+VM_JOB_TECH_DURATION_MS};
+    workshop.jobTechCursor=(index+1)%total;
+    VMSound?.('jobStart');
+    return true;
+  }
+  return false;
+}
 
 /* Passive franchise and flagship, plus the active premium floor. */
 const vmFranchiseUpgrades=[
@@ -417,7 +439,6 @@ document.addEventListener('click',event=>{
   const assembly=event.target.closest('.start-worker-assembly');if(assembly)return vmStartWorkerAssembly(assembly.dataset.workerKind,Number(assembly.dataset.workerIndex));
   const clear=event.target.closest('.clear-managed-worker');if(clear)return vmClearWorker(clear.dataset.workerKind,Number(clear.dataset.workerIndex));
   if(event.target.closest('.hire-job-tech'))return vmHireJobTech();
-  if(event.target.closest('.start-job-tech'))return vmStartJobTech();
   if(event.target.closest('.buy-franchise'))return vmBuyFeature('franchise');
   if(event.target.closest('.buy-premium-floor'))return vmBuyFeature('premium');
   if(event.target.closest('.buy-flagship'))return vmBuyFeature('flagship');
