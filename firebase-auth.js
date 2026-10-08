@@ -262,7 +262,7 @@ onAuthStateChanged(auth, async (user) => {
     }
   } catch (error) { console.warn('Player profile sync failed', error); }
 });
-supportButton?.addEventListener('click', () => {
+supportButton?.addEventListener('click', async () => {
   const user = auth.currentUser;
   if (!user) return;
   const name = user.displayName || 'Névtelen játékos';
