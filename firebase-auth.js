@@ -88,6 +88,8 @@ const supportChatClose = document.querySelector('#supportChatClose');
 const supportChatMessages = document.querySelector('#supportChatMessages');
 const supportChatInput = document.querySelector('#supportChatInput');
 const supportChatSend = document.querySelector('#supportChatSend');
+const bannedModal = document.querySelector('#bannedModal');
+const bannedModalClose = document.querySelector('#bannedModalClose');
 let supportChatTargetUid = null;
 const supportUnreadByUid = new Map();
 const accountDeleteButton = document.querySelector('#accountDeleteButton');
@@ -224,7 +226,7 @@ onAuthStateChanged(auth, async (user) => {
       const banned = await getDoc(doc(db, 'bannedEmails', user.email.toLowerCase()));
       if (banned.exists()) {
         await signOut(auth);
-        if (isAuthPage) setStatus('Ez az e-mail-cím bannolva van, a fiók nem használható.');
+        if (isAuthPage) { setStatus('Ez az e-mail-cím bannolva van, a fiók nem használható.'); if (bannedModal) bannedModal.hidden = false; }
         return;
       }
     } catch (banError) { console.warn('Banned account lookup skipped', banError); }
@@ -316,6 +318,8 @@ onAuthStateChanged(auth, async (user) => {
     }, 5000);
   } catch (error) { console.warn('Player profile sync failed', error); }
 });
+bannedModalClose?.addEventListener('click', () => { if (bannedModal) bannedModal.hidden = true; });
+bannedModal?.addEventListener('click', event => { if (event.target === bannedModal) bannedModal.hidden = true; });
 async function loadSupportChat() {
   const user = auth.currentUser;
   if (!user || !supportChatMessages) return;
