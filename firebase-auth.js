@@ -88,6 +88,8 @@ const supportChatClose = document.querySelector('#supportChatClose');
 const supportChatMessages = document.querySelector('#supportChatMessages');
 const supportChatInput = document.querySelector('#supportChatInput');
 const supportChatSend = document.querySelector('#supportChatSend');
+let supportChatTargetUid = null;
+const supportUnreadByUid = new Map();
 const accountDeleteButton = document.querySelector('#accountDeleteButton');
 const ADMIN_EMAIL = 'martin.roszoly2002@gmail.com';
 let registerMode = false;
@@ -299,13 +301,14 @@ onAuthStateChanged(auth, async (user) => {
 async function loadSupportChat() {
   const user = auth.currentUser;
   if (!user || !supportChatMessages) return;
+  const threadUid = supportChatTargetUid || user.uid;
   try {
     let messages = [];
     try {
-      const snapshot = await getDocs(query(collection(db, 'supportMessages'), where('uid', '==', user.uid)));
+      const snapshot = await getDocs(query(collection(db, 'supportMessages'), where('uid', '==', threadUid)));
       messages = snapshot.docs.map(item => item.data());
     } catch (collectionError) {
-      const profile = await getDoc(doc(db, 'players', user.uid));
+      const profile = await getDoc(doc(db, 'players', threadUid));
       messages = Array.isArray(profile.data()?.supportMessages) ? profile.data().supportMessages : [];
     }
     messages.sort((a, b) => Number(a.createdAt || a.createdAt?.toMillis?.() || 0) - Number(b.createdAt || b.createdAt?.toMillis?.() || 0));
@@ -314,7 +317,7 @@ async function loadSupportChat() {
   } catch (error) { console.warn('Support chat load failed', error); supportChatMessages.textContent = 'A Support-chat nem tölthető be.'; }
 }
 function closeSupportChat() { if (!supportChatModal) return; supportChatModal.hidden = true; document.body.classList.remove('support-chat-open'); }
-supportButton?.addEventListener('click', async () => { supportChatModal.hidden = false; document.body.classList.add('support-chat-open'); await loadSupportChat(); supportChatInput?.focus(); });
+supportButton?.addEventListener('click', async () => { supportChatTargetUid = null; supportChatModal.hidden = false; document.body.classList.add('support-chat-open'); await loadSupportChat(); supportChatInput?.focus(); });
 supportChatClose?.addEventListener('click', closeSupportChat);
 supportChatModal?.addEventListener('click', event => { if (event.target === supportChatModal) closeSupportChat(); });
 supportChatSend?.addEventListener('click', async () => {
@@ -323,9 +326,10 @@ supportChatSend?.addEventListener('click', async () => {
   if (!user || !message) return;
   supportChatSend.disabled = true;
   try {
-    const payload = { uid: user.uid, playerName: user.displayName || 'Névtelen játékos', email: user.email || '', message, sender: 'player', createdAt: Date.now(), status: 'new' };
+    const isAdminReply = user.email?.toLowerCase() === ADMIN_EMAIL && supportChatTargetUid;
+    const payload = { uid: supportChatTargetUid || user.uid, playerName: isAdminReply ? 'VoltMarketAdmin' : (user.displayName || 'Névtelen játékos'), email: isAdminReply ? ADMIN_EMAIL : (user.email || ''), message, sender: isAdminReply ? 'admin' : 'player', createdAt: Date.now(), status: isAdminReply ? 'read' : 'new' };
     try { await addDoc(collection(db, 'supportMessages'), { ...payload, createdAt: serverTimestamp() }); }
-    catch (collectionError) { await setDoc(doc(db, 'players', user.uid), { supportMessages: arrayUnion(payload), updatedAt: serverTimestamp() }, { merge: true }); }
+    catch (collectionError) { await setDoc(doc(db, 'players', payload.uid), { supportMessages: arrayUnion(payload), updatedAt: serverTimestamp() }, { merge: true }); }
     supportChatInput.value = '';
     await loadSupportChat();
   } catch (error) { console.warn('Support chat send failed', error); }
@@ -385,7 +389,8 @@ adminLoadPlayers?.addEventListener('click', async () => {
       const game = player.gameState && typeof player.gameState === 'object' ? player.gameState : {};
       const name = escapeHtml(player.email?.toLowerCase() === ADMIN_EMAIL ? 'VoltMarketAdmin' : (player.displayName || 'Névtelen'));
       const email = escapeHtml(player.email || '');
-      return `<div class="admin-player" data-admin-uid="${escapeHtml(item.id)}"><div class="admin-player-main"><strong>${name}</strong><small>${email || 'E-mail nélkül'}</small></div><label>Név<input class="admin-name" value="${name}" maxlength="40"></label><label>Szint<input class="admin-level" type="number" min="1" max="999" value="${Math.max(1, finite(game.level, finite(player.level, 1)))}"></label><label>Kredit<input class="admin-balance" type="number" min="0" value="${Math.max(0, finite(game.balance, finite(player.balance)))}"></label><span class="admin-player-actions"><button class="small-btn admin-save-player" type="button">Mentés</button><button class="small-btn danger admin-delete-player" type="button">Profil törlése</button><button class="small-btn danger admin-ban-player" type="button">Bannolás</button></span></div>`;
+      const unread = supportUnreadByUid.get(item.id) || 0;
+      return `<div class="admin-player" data-admin-uid="${escapeHtml(item.id)}" data-admin-email="${email}" data-admin-name="${name}"><div class="admin-player-main"><strong>${name}</strong><small>${email || 'E-mail nélkül'}</small></div><label>Név<input class="admin-name" value="${name}" maxlength="40"></label><label>Szint<input class="admin-level" type="number" min="1" max="999" value="${Math.max(1, finite(game.level, finite(player.level, 1)))}"></label><label>Kredit<input class="admin-balance" type="number" min="0" value="${Math.max(0, finite(game.balance, finite(player.balance)))}"></label><span class="admin-player-actions"><button class="small-btn admin-support-player" type="button">💬 Support${unread ? `<b class="support-unread">${unread}</b>` : ''}</button><button class="small-btn admin-save-player" type="button">Mentés</button><button class="small-btn danger admin-delete-player" type="button">Profil törlése</button><button class="small-btn danger admin-ban-player" type="button">Bannolás</button></span></div>`;
     }).join('') || '<p>Nincs még játékosprofil.</p>';
   } catch (error) { adminPlayers.textContent = 'A játékoslista nem tölthető be.'; console.warn('Admin player list failed', error); }
   finally { adminLoadPlayers.disabled = false; }
@@ -403,6 +408,7 @@ adminLoadSupport?.addEventListener('click', async () => {
       messages = players.docs.flatMap(item => (Array.isArray(item.data().supportMessages) ? item.data().supportMessages : []));
     }
     messages.sort((a, b) => Number(b.createdAt?.toMillis?.() || b.createdAt || 0) - Number(a.createdAt?.toMillis?.() || a.createdAt || 0));
+    supportUnreadByUid.clear(); messages.filter(item => item.status === 'new' && item.sender === 'player').forEach(item => supportUnreadByUid.set(item.uid, (supportUnreadByUid.get(item.uid) || 0) + 1));
     const threads = [...messages.reduce((map, item) => { const key = item.uid || item.email || 'unknown'; if (!map.has(key)) map.set(key, []); map.get(key).push(item); return map; }, new Map()).entries()];
     adminSupportMessages.innerHTML = threads.length ? threads.map(([, items]) => { const first = items[0]; const unread = items.filter(item => item.status === 'new').length; return `<details class="support-thread" open><summary><strong>${escapeHtml(first.playerName || 'Névtelen játékos')}</strong><small>${escapeHtml(first.email || '')}</small>${unread ? `<b class="support-unread">${unread}</b>` : ''}</summary><div class="support-thread-messages">${items.map(item => `<article class="support-message-card ${item.sender === 'admin' ? 'is-admin' : ''}"><p>${escapeHtml(item.message || '')}</p><small>${item.sender === 'admin' ? 'Admin' : 'Játékos'}</small></article>`).join('')}</div></details>`; }).join('') : '<p>Nincs új Support-üzenet.</p>';
   } catch (error) { console.warn('Support inbox failed', error); adminSupportMessages.textContent = 'A Support-üzenetek nem tölthetők be.'; }
@@ -411,6 +417,14 @@ adminLoadSupport?.addEventListener('click', async () => {
 adminPlayers?.addEventListener('click', async (event) => {
   const row = event.target.closest('[data-admin-uid]');
   if (!row || auth.currentUser?.email !== ADMIN_EMAIL) return;
+  if (event.target.closest('.admin-support-player')) {
+    supportChatTargetUid = row.dataset.adminUid;
+    supportChatModal.hidden = false;
+    document.body.classList.add('support-chat-open');
+    await loadSupportChat();
+    supportChatInput?.focus();
+    return;
+  }
   const targetRef = doc(db, 'players', row.dataset.adminUid);
   if (event.target.closest('.admin-save-player')) {
     const name = row.querySelector('.admin-name')?.value.trim() || 'Névtelen';
