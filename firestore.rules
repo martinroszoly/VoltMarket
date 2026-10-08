@@ -16,7 +16,10 @@ service cloud.firestore {
     match /supportMessages/{messageId} {
       allow create: if request.auth != null
         && request.resource.data.uid == request.auth.uid;
-      allow read, update, delete: if request.auth != null
+      allow read: if request.auth != null
+        && (request.auth.token.email == 'martin.roszoly2002@gmail.com'
+          || resource.data.uid == request.auth.uid);
+      allow update, delete: if request.auth != null
         && request.auth.token.email == 'martin.roszoly2002@gmail.com';
     }
   }
