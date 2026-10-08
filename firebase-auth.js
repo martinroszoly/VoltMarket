@@ -305,9 +305,10 @@ async function loadSupportChat() {
     supportChatMessages.scrollTop = supportChatMessages.scrollHeight;
   } catch (error) { console.warn('Support chat load failed', error); supportChatMessages.textContent = 'A Support-chat nem tölthető be.'; }
 }
-supportButton?.addEventListener('click', async () => { supportChatModal.hidden = false; await loadSupportChat(); supportChatInput?.focus(); });
-supportChatClose?.addEventListener('click', () => { supportChatModal.hidden = true; });
-supportChatModal?.addEventListener('click', event => { if (event.target === supportChatModal) supportChatModal.hidden = true; });
+function closeSupportChat() { if (!supportChatModal) return; supportChatModal.hidden = true; document.body.classList.remove('support-chat-open'); }
+supportButton?.addEventListener('click', async () => { supportChatModal.hidden = false; document.body.classList.add('support-chat-open'); await loadSupportChat(); supportChatInput?.focus(); });
+supportChatClose?.addEventListener('click', closeSupportChat);
+supportChatModal?.addEventListener('click', event => { if (event.target === supportChatModal) closeSupportChat(); });
 supportChatSend?.addEventListener('click', async () => {
   const user = auth.currentUser;
   const message = supportChatInput?.value.trim() || '';
@@ -389,7 +390,8 @@ adminLoadSupport?.addEventListener('click', async () => {
       const bt = b.createdAt?.toMillis?.() || 0;
       return bt - at;
     });
-    adminSupportMessages.innerHTML = messages.length ? messages.map(item => `<article class="support-message-card"><strong>${escapeHtml(item.playerName || 'Névtelen játékos')}</strong><small>${escapeHtml(item.email || '')}</small><p>${escapeHtml(item.message || '')}</p></article>`).join('') : '<p>Nincs új Support-üzenet.</p>';
+    const threads = [...messages.reduce((map, item) => { const key = item.uid || item.email || 'unknown'; if (!map.has(key)) map.set(key, []); map.get(key).push(item); return map; }, new Map()).entries()];
+    adminSupportMessages.innerHTML = threads.length ? threads.map(([, items]) => { const first = items[0]; const unread = items.filter(item => item.status === 'new').length; return `<details class="support-thread" open><summary><strong>${escapeHtml(first.playerName || 'Névtelen játékos')}</strong><small>${escapeHtml(first.email || '')}</small>${unread ? `<b class="support-unread">${unread}</b>` : ''}</summary><div class="support-thread-messages">${items.map(item => `<article class="support-message-card ${item.sender === 'admin' ? 'is-admin' : ''}"><p>${escapeHtml(item.message || '')}</p><small>${item.sender === 'admin' ? 'Admin' : 'Játékos'}</small></article>`).join('')}</div></details>`; }).join('') : '<p>Nincs új Support-üzenet.</p>';
   } catch (error) { console.warn('Support inbox failed', error); adminSupportMessages.textContent = 'A Support-üzenetek nem tölthetők be.'; }
   finally { adminLoadSupport.disabled = false; }
 });
