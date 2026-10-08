@@ -68,8 +68,8 @@ if (workshop.activeOrder && !workshop.activeOrder.multiMode) {
 workshop.activeOrder = {multiMode: true};
 
 function vmPersist() {
-  localStorage.setItem('voltmarket-workshop', JSON.stringify(workshop));
-  localStorage.setItem('voltmarket-save', JSON.stringify(state));
+  window.VoltStorage?.set('voltmarket-workshop', JSON.stringify(workshop));
+  window.VoltStorage?.set('voltmarket-save', JSON.stringify(state));
   updateHud();
 }
 
@@ -423,6 +423,13 @@ const vmBaseRenderWorkshop=renderWorkshop;
 renderWorkshop=function(){vmBaseRenderWorkshop();vmDecoratePrinter()};
 const vmBaseRenderAll=renderAll;
 renderAll=function(){vmBaseRenderAll();renderEnterprise();renderServiceCenter();renderAdvancedStore();vmDecoratePrinter()};
+window.addEventListener('volt-user-changed',()=>{
+  Object.entries(vmDefaults).forEach(([key,value])=>{if(workshop[key]===undefined)workshop[key]=Array.isArray(value)?[...value]:value});
+  workshop.repairCrewJobs=Array.from({length:3},(_,i)=>workshop.repairCrewJobs?.[i]||null);
+  workshop.customerCrewJobs=Array.from({length:3},(_,i)=>workshop.customerCrewJobs?.[i]||null);
+  vmEnsureCustomerSlots();
+  renderAll();
+});
 const vmBaseEmployeeTick=employeeTick;
 employeeTick=function(){vmBaseEmployeeTick();vmTickEmployeeXp()};
 const vmBaseStoreTick=storeTick;
