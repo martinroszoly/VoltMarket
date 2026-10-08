@@ -18,6 +18,7 @@ import {
   setDoc,
   collection,
   getDocs,
+  deleteDoc,
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js';
 
@@ -70,6 +71,7 @@ const adminPlayers = document.querySelector('#adminPlayers');
 const ADMIN_EMAIL = 'martin.roszoly2002@gmail.com';
 let registerMode = false;
 let syncTimer;
+let authRedirectTimer;
 
 function setStatus(message = '') { if (status) status.textContent = message; }
 function setSyncStatus(message) { if (cloudSyncStatus) cloudSyncStatus.textContent = message; }
@@ -157,6 +159,7 @@ logoutButton?.addEventListener('click', async () => {
   catch (error) { console.warn('Logout failed', error); logoutButton.disabled = false; }
 });
 onAuthStateChanged(auth, async (user) => {
+  clearTimeout(authRedirectTimer);
   if (user && await needsEmailVerification(user)) {
     if (!isAuthPage) window.location.replace('./auth.html');
     setStatus('A belépéshez erősítsd meg az e-mail-címedet.');
@@ -168,8 +171,7 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
   if (!user && !isAuthPage) {
-    window.location.replace('./auth.html');
-    return;
+    authRedirectTimer = setTimeout(() => window.location.replace('./auth.html'), 1200);
   }
   document.body.classList.toggle('auth-required', !user);
   if (gate) gate.hidden = Boolean(user);
@@ -234,10 +236,35 @@ adminLoadPlayers?.addEventListener('click', async () => {
     const snapshot = await getDocs(collection(db, 'players'));
     adminPlayers.innerHTML = snapshot.docs.map((item) => {
       const player = item.data();
-      return `<div class="admin-player"><strong>${player.displayName || 'Névtelen'}</strong><span>${player.email || '—'}</span><span>${player.level || 1}. szint</span><span>${player.xp || 0} XP</span><span>${player.balance || 0} CR</span></div>`;
+      const game = player.gameState && typeof player.gameState === 'object' ? player.gameState : {};
+      const name = escapeHtml(player.displayName || 'Névtelen');
+      const email = escapeHtml(player.email || '');
+      return `<div class="admin-player" data-admin-uid="${escapeHtml(item.id)}"><div class="admin-player-main"><strong>${name}</strong><small>${email || 'E-mail nélkül'}</small></div><label>Név<input class="admin-name" value="${name}" maxlength="40"></label><label>Szint<input class="admin-level" type="number" min="1" max="999" value="${Math.max(1, finite(game.level, finite(player.level, 1)))}"></label><label>Kredit<input class="admin-balance" type="number" min="0" value="${Math.max(0, finite(game.balance, finite(player.balance)))}"></label><span class="admin-player-actions"><button class="small-btn admin-save-player" type="button">Mentés</button>${email ? `<a class="small-btn admin-mail-player" href="mailto:${email}?subject=VoltMarket%20üzenet">E-mail</a>` : ''}<button class="small-btn danger admin-delete-player" type="button">Törlés</button></span></div>`;
     }).join('') || '<p>Nincs még játékosprofil.</p>';
   } catch (error) { adminPlayers.textContent = 'A játékoslista nem tölthető be.'; console.warn('Admin player list failed', error); }
   finally { adminLoadPlayers.disabled = false; }
+});
+adminPlayers?.addEventListener('click', async (event) => {
+  const row = event.target.closest('[data-admin-uid]');
+  if (!row || auth.currentUser?.email !== ADMIN_EMAIL) return;
+  const targetRef = doc(db, 'players', row.dataset.adminUid);
+  if (event.target.closest('.admin-save-player')) {
+    const name = row.querySelector('.admin-name')?.value.trim() || 'Névtelen';
+    const level = Math.max(1, Math.round(finite(row.querySelector('.admin-level')?.value, 1)));
+    const balance = Math.max(0, Math.round(finite(row.querySelector('.admin-balance')?.value, 0)));
+    try {
+      const snapshot = await getDoc(targetRef);
+      const current = snapshot.exists() ? snapshot.data() : {};
+      const gameState = { ...(current.gameState || {}), level, balance };
+      await setDoc(targetRef, { displayName: name, level, balance, gameState, updatedAt: serverTimestamp() }, { merge: true });
+      setSyncStatus('Játékosprofil frissítve'); await loadLeaderboard(); toast('A játékos profilja frissítve.');
+    } catch (error) { console.warn('Admin player update failed', error); toast('A játékos profilja nem frissíthető.'); }
+  }
+  if (event.target.closest('.admin-delete-player')) {
+    if (!confirm('Törlöd ennek a játékosnak a mentett VoltMarket-profilját?')) return;
+    try { await deleteDoc(targetRef); row.remove(); await loadLeaderboard(); toast('A játékos mentett profilja törölve.'); }
+    catch (error) { console.warn('Admin player delete failed', error); toast('A játékos profilja nem törölhető.'); }
+  }
 });
 document.body.classList.add('auth-required');
 
@@ -298,9 +325,12 @@ function renderBusinessProfile(player) {
   const finished = Array.isArray(workshop.finished) ? workshop.finished.length : stats.finished;
   const employees = Array.isArray(workshop.employees) ? workshop.employees.length : 0;
   const technicians = finite(workshop.repairCrewHired) + finite(workshop.customerCrewHired);
-  const stores = [workshop.storeOwned && 'Alapüzlet', workshop.franchiseOwned && 'Franchise üzlet', workshop.flagshipOwned && 'Prémium üzlet'].filter(Boolean);
+  const stores = [[workshop.storeOwned, '🏪', 'Alapüzlet'], [workshop.franchiseOwned, '🏢', 'Franchise üzlet'], [workshop.flagshipOwned, '🚀', 'Prémium üzlet']].filter(item => item[0]);
+  const equipmentNames = { phone: ['📱', 'Telefon'], laptop: ['💻', 'Laptop'], monitor: ['🖥️', 'Monitor'], pc: ['🧰', 'Gamer PC'], headset: ['🎧', 'Fejhallgató'], glasses: ['🥽', 'XR szemüveg'], mic: ['🎙️', 'Mikrofon'], keyboard: ['⌨️', 'Billentyűzet'], mouse: ['🖱️', 'Egér'], smart: ['🔴', 'Okosközpont'], chair: ['🪑', 'Gamer szék'], consoleStation: ['🎮', 'Konzolállomás'], vrToolkit: ['🥽', 'VR kalibrátor'], racingRig: ['🏎️', 'Kormánytesztelő'], controller: ['🕹️', 'Kontroller'] };
+  const equipmentChips = equipment.length ? equipment.map(id => { const item = equipmentNames[id] || ['◆', id]; return `<span class="business-chip">${item[0]} ${escapeHtml(item[1])}</span>`; }).join('') : '<span class="business-muted">Még nincs felszerelés</span>';
+  const storeChips = stores.length ? stores.map(item => `<span class="business-chip">${item[1]} ${item[2]}</span>`).join('') : '<span class="business-muted">Még csak az alapüzlet épül</span>';
   const name = escapeHtml(player.displayName || 'Névtelen játékos');
-  businessModalContent.innerHTML = `<div class="business-profile-kicker">VOLTMarket üzleti profil</div><h2 id="playerBusinessTitle">${name} üzlete</h2><p class="business-profile-intro">Itt látható röviden, hol tart ez a játékos a fejlesztésben és a bevételben.</p><div class="business-profile-stats"><div><span>HELYEZÉS</span><strong>#${player.rank || '–'}</strong></div><div><span>SZINT</span><strong>${stats.level}</strong></div><div><span>KREDIT</span><strong>${stats.balance.toLocaleString('hu-HU')} CR</strong></div><div><span>XP</span><strong>${stats.xp.toLocaleString('hu-HU')}</strong></div></div><div class="business-profile-grid"><article><span class="eyebrow">FEJLŐDÉS</span><p>${equipment} felszerelés · ${stats.finished} teljesített eredmény</p><p>${projects} aktív projekt · ${finished} kész termék</p></article><article><span class="eyebrow">CSAPAT ÉS ÜZLETEK</span><p>${employees} alap munkatárs · ${technicians} szerviztechnikus</p><p>${stores.length ? stores.join(' · ') : 'Még csak az alapüzlet épül'}</p></article></div>`;
+  businessModalContent.innerHTML = `<div class="business-profile-kicker">VOLTMarket üzleti profil</div><h2 id="playerBusinessTitle">${name} üzlete</h2><p class="business-profile-intro">Gyors áttekintés arról, hol tart ez a játékos a fejlesztésben.</p><div class="business-profile-stats"><div><span>🏆 HELYEZÉS</span><strong>#${player.rank || '–'}</strong></div><div><span>⚡ SZINT</span><strong>${stats.level}</strong></div><div><span>◈ KREDIT</span><strong>${stats.balance.toLocaleString('hu-HU')} CR</strong></div><div><span>✦ XP</span><strong>${stats.xp.toLocaleString('hu-HU')}</strong></div></div><div class="business-profile-grid"><article><span class="eyebrow">🧰 FELSZERELÉS</span><div class="business-chip-list">${equipmentChips}</div><div class="business-progress-line"><span>Előrehaladás</span><strong>${equipment.length} eszköz · ${stats.finished} teljesített eredmény</strong></div></article><article><span class="eyebrow">🏭 MŰHELY</span><div class="business-progress-list"><div><span>🔧</span><strong>${projects} aktív projekt</strong></div><div><span>📦</span><strong>${finished} kész termék</strong></div><div><span>👥</span><strong>${employees} alap munkatárs · ${technicians} technikus</strong></div></div></article><article class="business-profile-wide"><span class="eyebrow">🏪 ÜZLETEK ÉS FEJLESZTÉS</span><div class="business-chip-list">${storeChips}</div></article></div>`;
   businessModal.hidden = false;
   businessModal.setAttribute('aria-hidden', 'false');
 }
