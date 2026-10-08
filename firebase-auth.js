@@ -333,6 +333,16 @@ onAuthStateChanged(auth, async (user) => {
       if (adminOverride && Number.isFinite(Number(adminOverride.xp))) restoredGameState.xp = Math.max(0, Math.round(Number(adminOverride.xp)));
       window.VoltStorage?.set('voltmarket-save', JSON.stringify(restoredGameState));
       if (snapshot.data().workshopState) window.VoltStorage?.set('voltmarket-workshop', JSON.stringify(snapshot.data().workshopState));
+      if (adminOverride) {
+        await setDoc(doc(db, 'players', user.uid), {
+          gameState: restoredGameState,
+          level: Number(restoredGameState.level || 1),
+          balance: Number(restoredGameState.balance || 0),
+          xp: Number(restoredGameState.xp || 0),
+          adminOverride: null,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      }
     }
     activatePlayerStorage(user.uid, true);
     // Do not poll and reload an already-open game in the background. Reloading
@@ -430,7 +440,12 @@ adminLoadPlayers?.addEventListener('click', async () => {
   adminLoadPlayers.disabled = true;
   try {
     const snapshot = await getDocs(collection(db, 'players'));
-    adminPlayers.innerHTML = snapshot.docs.map((item) => {
+    const adminProfile = snapshot.docs.find(item => item.id === auth.currentUser.uid)?.data() || {};
+    const bannedEmails = new Set((Array.isArray(adminProfile.bannedEmails) ? adminProfile.bannedEmails : []).map(value => String(value).trim().toLowerCase()));
+    adminPlayers.innerHTML = snapshot.docs.filter(item => {
+      const player = item.data();
+      return player.banned !== true && !bannedEmails.has(String(player.email || '').trim().toLowerCase());
+    }).map((item) => {
       const player = item.data();
       const game = player.gameState && typeof player.gameState === 'object' ? player.gameState : {};
       const name = escapeHtml(player.email?.toLowerCase() === ADMIN_EMAIL ? 'VoltMarketAdmin' : (player.displayName || 'Névtelen'));
@@ -532,7 +547,10 @@ adminPlayers?.addEventListener('click', async (event) => {
       let directSaved = false;
       let playerFlagSaved = false;
       try {
-        await setDoc(doc(db, 'players', auth.currentUser.uid), { bannedEmails: arrayUnion(email), updatedAt: serverTimestamp() }, { merge: true });
+        const adminRef = doc(db, 'players', auth.currentUser.uid);
+        const adminSnapshot = await getDoc(adminRef);
+        const currentBans = Array.isArray(adminSnapshot.data()?.bannedEmails) ? adminSnapshot.data().bannedEmails : [];
+        await setDoc(adminRef, { bannedEmails: [...new Set([...currentBans.map(value => String(value).trim().toLowerCase()), email])], updatedAt: serverTimestamp() }, { merge: true });
         registrySaved = true;
       } catch (registryError) { console.warn('Admin ban registry write failed', registryError); }
       try { await setDoc(doc(db, 'bannedEmails', email), banRecord, { merge: true }); directSaved = true; }
@@ -582,6 +600,34 @@ window.addEventListener('volt-state-changed', (event) => {
     } catch (error) { setSyncStatus('Felhőmentés sikertelen'); console.warn('Cloud save failed', error); }
   }, 500);
   setTimeout(loadLeaderboard, 700);
+});
+window.addEventListener('volt-game-reset', async (event) => {
+  const user = auth.currentUser;
+  const gameState = event.detail?.gameState;
+  if (!user || !gameState) return;
+  clearTimeout(syncTimer);
+  setSyncStatus('Játékállás törlése a felhőből…');
+  try {
+    await setDoc(doc(db, 'players', user.uid), {
+      uid: user.uid,
+      email: user.email || '',
+      displayName: user.displayName || '',
+      gameState,
+      workshopState: null,
+      level: Number(gameState.level || 1),
+      xp: Number(gameState.xp || 0),
+      balance: Number(gameState.balance || 0),
+      score: 0,
+      adminOverride: null,
+      resetAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    setSyncStatus('A játék újrakezdve és a felhőmentés törölve.');
+    await loadLeaderboard();
+  } catch (error) {
+    setSyncStatus('A felhőmentés törlése sikertelen.');
+    console.warn('Cloud reset failed', error);
+  }
 });
 window.addEventListener('volt-workshop-changed', (event) => {
   const user = auth.currentUser;
