@@ -195,6 +195,7 @@ body{background:radial-gradient(circle at 5% 12%,rgba(255,77,132,.22),transparen
 @media(max-width:760px){.settings-grid{grid-template-columns:1fr}.settings-card{grid-template-columns:auto 1fr;align-items:start}.settings-card>.settings-toggle,.settings-card>strong{grid-column:1/-1;justify-self:stretch;text-align:center}.settings-toggle{width:100%}}
 body.auth-required > *:not(#authGate) { display: none !important; }
 body.auth-required > .deleted-profile-modal:not([hidden]) { display: grid !important; }
+body.auth-required > .banned-modal:not([hidden]) { display: grid !important; }
 .auth-gate[hidden] { display: none !important; }
 .auth-gate { position: fixed; inset: 0; z-index: 1000; overflow: auto; }
 .auth-gate { min-height: 100svh; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 15% 10%, rgba(239,35,60,.22), transparent 34%), radial-gradient(circle at 85% 90%, rgba(0,229,255,.16), transparent 36%), #08090d; color: #f4f7fb; }
