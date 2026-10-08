@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="VoltMarket belépés" />
   <title>Belépés · VoltMarket</title>
-  <link rel="stylesheet" href="styles.css?v=5.1" />
+  <link rel="stylesheet" href="styles.css?v=5.2" />
 </head>
 <body class="auth-required">
   <section id="authGate" class="auth-gate" aria-labelledby="authTitle">
@@ -25,6 +25,7 @@
       <p id="authStatus" class="auth-status" role="status" aria-live="polite"></p>
     </div>
   </section>
-  <script type="module" src="firebase-auth.js?v=15"></script>
+  <div id="bannedModal" class="banned-modal" hidden><section class="banned-modal-card" role="dialog" aria-modal="true" aria-labelledby="bannedModalTitle"><button id="bannedModalClose" class="banned-modal-close" type="button" aria-label="Ablak bezárása">×</button><div class="banned-modal-icon">!</div><span class="eyebrow">VOLTMarket BIZTONSÁG</span><h2 id="bannedModalTitle">Sajnáljuk, ezt a fiókot letiltottuk.</h2><p>Ez az e-mail-cím jelenleg nem használható a VoltMarketben. Ha szerinted tévedés történt, kérj segítséget az adminisztrátortól.</p></section></div>
+  <script type="module" src="firebase-auth.js?v=16"></script>
 </body>
 </html>
