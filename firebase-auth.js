@@ -91,6 +91,7 @@ const bannedModal = document.querySelector('#bannedModal');
 const bannedModalClose = document.querySelector('#bannedModalClose');
 let supportChatTargetUid = null;
 const supportUnreadByUid = new Map();
+const supportMessageTime = value => Number(value?.toMillis?.() || value || 0);
 const accountDeleteButton = document.querySelector('#accountDeleteButton');
 const ADMIN_EMAIL = 'martin.roszoly2002@gmail.com';
 let registerMode = false;
@@ -355,18 +356,40 @@ async function loadSupportChat() {
   const user = auth.currentUser;
   if (!user || !supportChatMessages) return;
   const threadUid = supportChatTargetUid || user.uid;
+  const adminIsReading = user.email?.toLowerCase() === ADMIN_EMAIL && Boolean(supportChatTargetUid);
   try {
     let messages = [];
     try {
       const snapshot = await getDocs(query(collection(db, 'supportMessages'), where('uid', '==', threadUid)));
       messages = snapshot.docs.map(item => item.data());
+      if (adminIsReading) {
+        const unreadDocs = snapshot.docs.filter(item => item.data().sender === 'player' && item.data().status === 'new');
+        try {
+          await Promise.all(unreadDocs.map(item => setDoc(item.ref, { status: 'read', readAt: serverTimestamp() }, { merge: true })));
+          messages = messages.map(item => item.sender === 'player' && item.status === 'new' ? { ...item, status: 'read' } : item);
+        } catch (readStatusError) { console.warn('Support read status update failed; using admin read marker', readStatusError); }
+      }
     } catch (collectionError) {
       const profile = await getDoc(doc(db, 'players', threadUid));
       messages = Array.isArray(profile.data()?.supportMessages) ? profile.data().supportMessages : [];
+      if (adminIsReading && messages.some(item => item.sender === 'player' && item.status === 'new')) {
+        messages = messages.map(item => item.sender === 'player' && item.status === 'new' ? { ...item, status: 'read', readAt: Date.now() } : item);
+        await setDoc(doc(db, 'players', threadUid), { supportMessages: messages, updatedAt: serverTimestamp() }, { merge: true });
+      }
     }
     messages.sort((a, b) => Number(a.createdAt || a.createdAt?.toMillis?.() || 0) - Number(b.createdAt || b.createdAt?.toMillis?.() || 0));
     supportChatMessages.innerHTML = messages.length ? messages.map(item => `<div class="support-chat-bubble ${item.sender === 'admin' ? 'is-admin' : 'is-player'}"><p>${escapeHtml(item.message || '')}</p><small>${item.sender === 'admin' ? 'VoltMarket Support' : 'Te'}</small></div>`).join('') : '<p class="support-chat-empty">Írj az adminnak, és itt folytathatjátok a beszélgetést.</p>';
     supportChatMessages.scrollTop = supportChatMessages.scrollHeight;
+    if (adminIsReading) {
+      try {
+        const adminRef = doc(db, 'players', user.uid);
+        const adminProfile = await getDoc(adminRef);
+        const currentMarkers = adminProfile.data()?.supportReadAtByUid || {};
+        await setDoc(adminRef, { supportReadAtByUid: { ...currentMarkers, [threadUid]: Date.now() }, updatedAt: serverTimestamp() }, { merge: true });
+      } catch (markerError) { console.warn('Support read marker could not be saved', markerError); }
+      supportUnreadByUid.delete(threadUid);
+      document.querySelector(`[data-admin-uid="${CSS.escape(threadUid)}"] .support-unread`)?.remove();
+    }
   } catch (error) { console.warn('Support chat load failed', error); supportChatMessages.textContent = 'A Support-chat nem tölthető be.'; }
 }
 function closeSupportChat() { if (!supportChatModal) return; supportChatModal.hidden = true; document.body.classList.remove('support-chat-open'); }
@@ -437,17 +460,22 @@ adminLoadPlayers?.addEventListener('click', async () => {
   if (auth.currentUser?.email !== ADMIN_EMAIL) return;
   adminLoadPlayers.disabled = true;
   try {
+    const snapshot = await getDocs(collection(db, 'players'));
+    const adminProfile = snapshot.docs.find(item => item.id === auth.currentUser.uid)?.data() || {};
+    const supportReadAtByUid = adminProfile.supportReadAtByUid || {};
     supportUnreadByUid.clear();
     try {
       const supportSnapshot = await getDocs(collection(db, 'supportMessages'));
       supportSnapshot.docs
         .map(item => item.data())
-        .filter(item => item.status === 'new' && item.sender === 'player')
+        .filter(item => item.status === 'new' && item.sender === 'player' && supportMessageTime(item.createdAt) > Number(supportReadAtByUid[item.uid] || 0))
         .forEach(item => supportUnreadByUid.set(item.uid, (supportUnreadByUid.get(item.uid) || 0) + 1));
     } catch (supportError) {
       console.warn('Support unread count could not be loaded', supportError);
+      snapshot.docs.flatMap(item => Array.isArray(item.data().supportMessages) ? item.data().supportMessages : [])
+        .filter(item => item.status === 'new' && item.sender === 'player' && supportMessageTime(item.createdAt) > Number(supportReadAtByUid[item.uid] || 0))
+        .forEach(item => supportUnreadByUid.set(item.uid, (supportUnreadByUid.get(item.uid) || 0) + 1));
     }
-    const snapshot = await getDocs(collection(db, 'players'));
     const adminProfile = snapshot.docs.find(item => item.id === auth.currentUser.uid)?.data() || {};
     const bannedEmails = new Set((Array.isArray(adminProfile.bannedEmails) ? adminProfile.bannedEmails : []).map(value => String(value).trim().toLowerCase()));
     adminPlayers.innerHTML = snapshot.docs.filter(item => {
@@ -459,7 +487,7 @@ adminLoadPlayers?.addEventListener('click', async () => {
       const name = escapeHtml(player.email?.toLowerCase() === ADMIN_EMAIL ? 'VoltMarketAdmin' : (player.displayName || 'Névtelen'));
       const email = escapeHtml(player.email || '');
       const unread = supportUnreadByUid.get(item.id) || 0;
-      return `<div class="admin-player" data-admin-uid="${escapeHtml(item.id)}" data-admin-email="${email}" data-admin-name="${name}"><div class="admin-player-main"><strong>${name}</strong><small>${email || 'E-mail nélkül'}</small></div><label>Név<input class="admin-name" value="${name}" maxlength="40"></label><label>Szint<input class="admin-level" type="number" min="1" max="999" value="${Math.max(1, finite(game.level, finite(player.level, 1)))}"></label><label>Kredit<input class="admin-balance" type="number" min="0" value="${Math.max(0, finite(game.balance, finite(player.balance)))}"></label><span class="admin-player-actions"><button class="small-btn admin-support-player" type="button">💬 Support${unread ? `<b class="support-unread">${unread}</b>` : ''}</button><button class="small-btn admin-save-player" type="button">Mentés</button><button class="small-btn danger admin-delete-player" type="button">Profil törlése</button><button class="small-btn danger admin-ban-player" type="button">Bannolás</button></span></div>`;
+      return `<div class="admin-player" data-admin-uid="${escapeHtml(item.id)}" data-admin-email="${email}" data-admin-name="${name}"><div class="admin-player-main"><strong>${name}</strong><small>${email || 'E-mail nélkül'}</small></div><label>Név<input class="admin-name" value="${name}" maxlength="40"></label><label>Szint<input class="admin-level" type="number" min="1" max="999" value="${Math.max(1, finite(game.level, finite(player.level, 1)))}"></label><label>Kredit<input class="admin-balance" type="number" min="0" value="${Math.max(0, finite(game.balance, finite(player.balance)))}"></label><label>Rangpont<input class="admin-rank-points" type="number" min="0" value="${rankStats(player).score}"></label><span class="admin-player-actions"><button class="small-btn admin-support-player" type="button">💬 Support${unread ? `<b class="support-unread">${unread}</b>` : ''}</button><button class="small-btn admin-save-player" type="button">Mentés</button><button class="small-btn danger admin-delete-player" type="button">Profil törlése</button><button class="small-btn danger admin-ban-player" type="button">Bannolás</button></span></div>`;
     }).join('') || '<p>Nincs még játékosprofil.</p>';
   } catch (error) { adminPlayers.textContent = 'A játékoslista nem tölthető be.'; console.warn('Admin player list failed', error); }
   finally { adminLoadPlayers.disabled = false; }
@@ -510,12 +538,14 @@ adminPlayers?.addEventListener('click', async (event) => {
     const name = row.querySelector('.admin-name')?.value.trim() || 'Névtelen';
     const levelInput = Number(row.querySelector('.admin-level')?.value);
     const balanceInput = Number(row.querySelector('.admin-balance')?.value);
-    if (!Number.isFinite(levelInput) || !Number.isFinite(balanceInput)) {
-      toast('A szint és a kredit mezőben érvényes számnak kell lennie.');
+    const rankPointsInput = Number(row.querySelector('.admin-rank-points')?.value);
+    if (!Number.isFinite(levelInput) || !Number.isFinite(balanceInput) || !Number.isFinite(rankPointsInput)) {
+      toast('A szint, kredit és rangpont mezőben érvényes számnak kell lennie.');
       return;
     }
     const level = Math.min(999, Math.max(1, Math.round(levelInput)));
     const balance = Math.max(0, Math.round(balanceInput));
+    const rankPoints = Math.max(0, Math.round(rankPointsInput));
     try {
       const snapshot = await getDoc(targetRef);
       const current = snapshot.exists() ? snapshot.data() : {};
@@ -523,18 +553,22 @@ adminPlayers?.addEventListener('click', async (event) => {
       // change so the normal progression loop cannot immediately level it back
       // up from stale XP stored in the previous game state.
       const gameState = { ...(current.gameState || {}), level, balance, xp: 0 };
+      const baseScore = baseRankScore({ ...current, gameState });
+      const rankPointAdjustment = rankPoints - baseScore;
       await setDoc(targetRef, {
         displayName: name,
         level,
         balance,
         xp: 0,
         gameState,
+        score: rankPoints,
+        rankPointAdjustment,
         adminOverride: { level, balance, xp: 0, updatedAt: Date.now() },
         updatedAt: serverTimestamp()
       }, { merge: true });
       const saved = await getDoc(targetRef);
       const savedState = saved.data()?.gameState || {};
-      if (Number(savedState.level) !== level || Number(savedState.balance) !== balance) throw new Error('Admin state verification failed');
+      if (Number(savedState.level) !== level || Number(savedState.balance) !== balance || rankStats(saved.data()).score !== rankPoints) throw new Error('Admin state verification failed');
       if (targetRef.id === auth.currentUser.uid) {
         window.VoltStorage?.set('voltmarket-save', JSON.stringify(gameState));
         window.dispatchEvent(new CustomEvent('volt-user-changed', { detail: { uid: targetRef.id } }));
@@ -675,13 +709,19 @@ function rankStats(player) {
   const xp = Math.max(0, finite(game.xp, finite(player.xp)));
   const owned = Array.isArray(game.owned) ? game.owned.length : 0;
   const finished = Array.isArray(workshop.finished) ? workshop.finished.length : (Array.isArray(game.history) ? game.history.filter(item => finite(item?.amount) > 0).length : 0);
-  // Always derive the score from the newest saved gameState instead of trusting
-  // an old denormalized score field in Firestore.
+  const score = Math.max(0, baseRankScore(player) + Math.round(finite(player.rankPointAdjustment)));
+  return { balance, level, xp, owned, finished, score, game, workshop };
+}
+function baseRankScore(player) {
+  const game = player.gameState && typeof player.gameState === 'object' ? player.gameState : {};
+  const workshop = player.workshopState && typeof player.workshopState === 'object' ? player.workshopState : {};
+  const level = Math.max(1, finite(game.level, finite(player.level, 1)));
+  const xp = Math.max(0, finite(game.xp, finite(player.xp)));
+  const owned = Array.isArray(game.owned) ? game.owned.length : 0;
+  const finished = Array.isArray(workshop.finished) ? workshop.finished.length : (Array.isArray(game.history) ? game.history.filter(item => finite(item?.amount) > 0).length : 0);
   const history = Array.isArray(game.history) ? game.history : [];
   const earnedCredits = history.reduce((sum, item) => sum + Math.max(0, finite(item?.amount)), 0);
-  // Rank points start at zero and grow from actual performance, not starting cash.
-  const score = Math.max(0, Math.floor(earnedCredits / 1000) + Math.max(0, level - 1) * 100 + Math.floor(xp / 10) + owned * 25 + finished * 50);
-  return { balance, level, xp, owned, finished, score, game, workshop };
+  return Math.max(0, Math.floor(earnedCredits / 1000) + Math.max(0, level - 1) * 100 + Math.floor(xp / 10) + owned * 25 + finished * 50);
 }
 function renderBusinessProfile(player) {
   if (!businessModalContent) return;
