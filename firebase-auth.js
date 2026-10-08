@@ -21,6 +21,7 @@ import {
   addDoc,
   query,
   where,
+  arrayUnion,
   collection,
   getDocs,
   deleteDoc,
@@ -299,8 +300,15 @@ async function loadSupportChat() {
   const user = auth.currentUser;
   if (!user || !supportChatMessages) return;
   try {
-    const snapshot = await getDocs(query(collection(db, 'supportMessages'), where('uid', '==', user.uid)));
-    const messages = snapshot.docs.map(item => item.data()).sort((a, b) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
+    let messages = [];
+    try {
+      const snapshot = await getDocs(query(collection(db, 'supportMessages'), where('uid', '==', user.uid)));
+      messages = snapshot.docs.map(item => item.data());
+    } catch (collectionError) {
+      const profile = await getDoc(doc(db, 'players', user.uid));
+      messages = Array.isArray(profile.data()?.supportMessages) ? profile.data().supportMessages : [];
+    }
+    messages.sort((a, b) => Number(a.createdAt || a.createdAt?.toMillis?.() || 0) - Number(b.createdAt || b.createdAt?.toMillis?.() || 0));
     supportChatMessages.innerHTML = messages.length ? messages.map(item => `<div class="support-chat-bubble ${item.sender === 'admin' ? 'is-admin' : 'is-player'}"><p>${escapeHtml(item.message || '')}</p><small>${item.sender === 'admin' ? 'VoltMarket Support' : 'Te'}</small></div>`).join('') : '<p class="support-chat-empty">Írj az adminnak, és itt folytathatjátok a beszélgetést.</p>';
     supportChatMessages.scrollTop = supportChatMessages.scrollHeight;
   } catch (error) { console.warn('Support chat load failed', error); supportChatMessages.textContent = 'A Support-chat nem tölthető be.'; }
@@ -315,7 +323,9 @@ supportChatSend?.addEventListener('click', async () => {
   if (!user || !message) return;
   supportChatSend.disabled = true;
   try {
-    await addDoc(collection(db, 'supportMessages'), { uid: user.uid, playerName: user.displayName || 'Névtelen játékos', email: user.email || '', message, sender: 'player', createdAt: serverTimestamp(), status: 'new' });
+    const payload = { uid: user.uid, playerName: user.displayName || 'Névtelen játékos', email: user.email || '', message, sender: 'player', createdAt: Date.now(), status: 'new' };
+    try { await addDoc(collection(db, 'supportMessages'), { ...payload, createdAt: serverTimestamp() }); }
+    catch (collectionError) { await setDoc(doc(db, 'players', user.uid), { supportMessages: arrayUnion(payload), updatedAt: serverTimestamp() }, { merge: true }); }
     supportChatInput.value = '';
     await loadSupportChat();
   } catch (error) { console.warn('Support chat send failed', error); }
@@ -384,12 +394,15 @@ adminLoadSupport?.addEventListener('click', async () => {
   if (auth.currentUser?.email !== ADMIN_EMAIL || !adminSupportMessages) return;
   adminLoadSupport.disabled = true;
   try {
-    const snapshot = await getDocs(collection(db, 'supportMessages'));
-    const messages = snapshot.docs.map(item => ({ id: item.id, ...item.data() })).sort((a, b) => {
-      const at = a.createdAt?.toMillis?.() || 0;
-      const bt = b.createdAt?.toMillis?.() || 0;
-      return bt - at;
-    });
+    let messages = [];
+    try {
+      const snapshot = await getDocs(collection(db, 'supportMessages'));
+      messages = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+    } catch (collectionError) {
+      const players = await getDocs(collection(db, 'players'));
+      messages = players.docs.flatMap(item => (Array.isArray(item.data().supportMessages) ? item.data().supportMessages : []));
+    }
+    messages.sort((a, b) => Number(b.createdAt?.toMillis?.() || b.createdAt || 0) - Number(a.createdAt?.toMillis?.() || a.createdAt || 0));
     const threads = [...messages.reduce((map, item) => { const key = item.uid || item.email || 'unknown'; if (!map.has(key)) map.set(key, []); map.get(key).push(item); return map; }, new Map()).entries()];
     adminSupportMessages.innerHTML = threads.length ? threads.map(([, items]) => { const first = items[0]; const unread = items.filter(item => item.status === 'new').length; return `<details class="support-thread" open><summary><strong>${escapeHtml(first.playerName || 'Névtelen játékos')}</strong><small>${escapeHtml(first.email || '')}</small>${unread ? `<b class="support-unread">${unread}</b>` : ''}</summary><div class="support-thread-messages">${items.map(item => `<article class="support-message-card ${item.sender === 'admin' ? 'is-admin' : ''}"><p>${escapeHtml(item.message || '')}</p><small>${item.sender === 'admin' ? 'Admin' : 'Játékos'}</small></article>`).join('')}</div></details>`; }).join('') : '<p>Nincs új Support-üzenet.</p>';
   } catch (error) { console.warn('Support inbox failed', error); adminSupportMessages.textContent = 'A Support-üzenetek nem tölthetők be.'; }
