@@ -26,3 +26,14 @@ test('Firestore rules protect player documents', async () => {
   assert.match(rules, /request\.auth\.uid == userId/);
   assert.match(rules, /martin\.roszoly2002@gmail\.com/);
 });
+
+test('auth keeps normal, deleted, and banned profiles on separate paths', async () => {
+  const auth = await read('firebase-auth.js');
+  const authHtml = await read('auth.html');
+  assert.match(auth, /profile\.data\(\)\?\.profileDeleted === true/);
+  assert.match(auth, /if \(!profile\.exists\(\)\) await persistNewPlayer/);
+  assert.match(auth, /volt-banned-login/);
+  assert.match(authHtml, /A profilodat töröltük/);
+  assert.match(authHtml, /deletedProfileName/);
+  assert.doesNotMatch(authHtml, /deletedProfilePassword/);
+});
