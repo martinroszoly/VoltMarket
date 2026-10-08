@@ -100,6 +100,14 @@ let syncTimer;
 let authRedirectTimer;
 let remoteStateTimer;
 
+function activatePlayerStorage(uid, notify = false) {
+  if (uid) {
+    window.VoltStorage?.primeLegacy(uid);
+    window.VoltStorage?.setUser(uid);
+  } else window.VoltStorage?.setUser('guest');
+  if (notify) window.dispatchEvent(new CustomEvent('volt-user-changed', { detail: { uid: uid || 'guest' } }));
+}
+
 function setStatus(message = '') { if (status) status.textContent = message; }
 function setSyncStatus(message) { if (cloudSyncStatus) cloudSyncStatus.textContent = message; }
 function setMode(next) {
@@ -222,6 +230,7 @@ logoutButton?.addEventListener('click', async () => {
 onAuthStateChanged(auth, async (user) => {
   clearTimeout(authRedirectTimer);
   clearInterval(remoteStateTimer);
+  if (!user) activatePlayerStorage(null, true);
   if (user?.email) {
     try {
       const banned = await getDoc(doc(db, 'bannedEmails', user.email.toLowerCase()));
@@ -257,8 +266,17 @@ onAuthStateChanged(auth, async (user) => {
   if (accountEmail) accountEmail.textContent = user.email || '';
   if (accountNameInput) accountNameInput.value = user.displayName || '';
   try {
+    // Switch the browser-local namespace before reading or restoring cloud data.
+    // This prevents the previous account's save from being used while a new
+    // account is loading on the same device.
+    activatePlayerStorage(user.uid);
     const snapshot = await getDoc(doc(db, 'players', user.uid));
     const profileWasDeleted = !snapshot.exists();
+    if (snapshot.data()?.banned) {
+      await signOut(auth);
+      if (isAuthPage) { setStatus('Sajnáljuk, ezt az e-mail-címet letiltottuk.'); if (bannedModal) bannedModal.hidden = false; }
+      return;
+    }
     if (profileWasDeleted) {
       const freshName = window.prompt('A profil törölve lett. Add meg újra a játékosnevedet:')?.trim();
       if (!freshName) {
@@ -277,13 +295,18 @@ onAuthStateChanged(auth, async (user) => {
       await persistNewPlayer(user, freshName);
       // A deleted profile must start cleanly and must never inherit another
       // account's or the deleted profile's browser-local save.
-      localStorage.removeItem('voltmarket-save');
-      localStorage.removeItem('voltmarket-workshop');
+      window.VoltStorage?.remove('voltmarket-save');
+      window.VoltStorage?.remove('voltmarket-workshop');
     }
+    const cloudName = snapshot.data()?.displayName?.trim() || '';
+    if (!isAdmin && cloudName && cloudName !== user.displayName) await updateProfile(user, { displayName: cloudName });
+    const effectiveDisplayName = isAdmin ? 'VoltMarketAdmin' : (cloudName || user.displayName || 'VoltMarket játékos');
+    if (accountName) accountName.textContent = effectiveDisplayName;
+    if (headerPlayerNameValue) headerPlayerNameValue.textContent = effectiveDisplayName;
     await setDoc(doc(db, 'players', user.uid), {
       uid: user.uid,
       email: user.email || '',
-      displayName: user.displayName || '',
+      displayName: effectiveDisplayName,
       lastLoginAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       verificationRequired: false,
@@ -291,9 +314,10 @@ onAuthStateChanged(auth, async (user) => {
     setSyncStatus('Firebase-szinkronizáció aktív');
     await loadLeaderboard();
     if (snapshot.exists() && snapshot.data().gameState) {
-      localStorage.setItem('voltmarket-save', JSON.stringify(snapshot.data().gameState));
-      if (snapshot.data().workshopState) localStorage.setItem('voltmarket-workshop', JSON.stringify(snapshot.data().workshopState));
+      window.VoltStorage?.set('voltmarket-save', JSON.stringify(snapshot.data().gameState));
+      if (snapshot.data().workshopState) window.VoltStorage?.set('voltmarket-workshop', JSON.stringify(snapshot.data().workshopState));
     }
+    activatePlayerStorage(user.uid, true);
     // Do not poll and reload an already-open game in the background. Reloading
     // while the player is working is disruptive and can make the page appear
     // to refresh by itself. Cloud changes are picked up on the next login or
@@ -347,8 +371,8 @@ accountDeleteButton?.addEventListener('click', async () => {
   try {
     await deleteDoc(doc(db, 'players', user.uid));
     await deleteUser(user);
-    localStorage.removeItem('voltmarket-save');
-    localStorage.removeItem('voltmarket-workshop');
+    window.VoltStorage?.remove('voltmarket-save');
+    window.VoltStorage?.remove('voltmarket-workshop');
     sessionStorage.removeItem('volt-cloud-restored-user');
     window.location.replace('./auth.html');
   } catch (error) {
@@ -444,7 +468,7 @@ adminPlayers?.addEventListener('click', async (event) => {
       const gameState = { ...(current.gameState || {}), level, balance, xp: 0 };
       await setDoc(targetRef, { displayName: name, level, balance, gameState, updatedAt: serverTimestamp() }, { merge: true });
       if (targetRef.id === auth.currentUser.uid) {
-        localStorage.setItem('voltmarket-save', JSON.stringify(gameState));
+        window.VoltStorage?.set('voltmarket-save', JSON.stringify(gameState));
         sessionStorage.setItem('volt-cloud-restored-user', auth.currentUser.uid);
         setSyncStatus('Saját profil frissítve. Az új értékek a következő belépéskor töltődnek be.');
         toast('A saját játékosprofilod frissítve.');
@@ -459,11 +483,16 @@ adminPlayers?.addEventListener('click', async (event) => {
     catch (error) { console.warn('Admin player delete failed', error); toast('A játékos profilja nem törölhető.'); }
   }
   if (event.target.closest('.admin-ban-player')) {
-    const email = row.querySelector('.admin-player-main small')?.textContent.trim().toLowerCase();
+    const email = (row.dataset.adminEmail || row.querySelector('.admin-player-main small')?.textContent || '').trim().toLowerCase();
     if (!email || !confirm(`Bannolod a(z) ${email} címet? Ezzel később sem lehet új profilt regisztrálni.`)) return;
     try {
-      await setDoc(doc(db, 'bannedEmails', email), { email, uid: row.dataset.adminUid, bannedAt: serverTimestamp(), bannedBy: auth.currentUser.email }, { merge: true });
-      await deleteDoc(targetRef);
+      const banRecord = { email, uid: row.dataset.adminUid, bannedAt: serverTimestamp(), bannedBy: auth.currentUser.email };
+      try { await setDoc(doc(db, 'bannedEmails', email), banRecord, { merge: true }); }
+      catch (banRecordError) { console.warn('Banned e-mail registry write failed; using player flag fallback', banRecordError); }
+      // Keep a small tombstone on the player document as a reliable fallback.
+      // This also prevents the account from becoming available if the optional
+      // bannedEmails collection rule has not been published yet.
+      await setDoc(targetRef, { banned: true, bannedAt: serverTimestamp(), bannedBy: auth.currentUser.email }, { merge: true });
       row.remove();
       await loadLeaderboard();
       toast('Az e-mail-cím bannolva.');
@@ -482,7 +511,7 @@ window.addEventListener('volt-state-changed', (event) => {
     email: user.email || '',
     displayName: user.displayName || '',
     gameState: event.detail,
-    workshopState: (() => { try { return JSON.parse(localStorage.getItem('voltmarket-workshop') || 'null'); } catch { return null; } })(),
+    workshopState: (() => { try { return JSON.parse(window.VoltStorage?.get('voltmarket-workshop') || 'null'); } catch { return null; } })(),
     level: Number(event.detail.level || 1),
     xp: Number(event.detail.xp || 0),
     balance: Number(event.detail.balance || 0),
@@ -554,7 +583,7 @@ async function loadLeaderboard() {
   if (!leaderboard || !auth.currentUser) return;
   try {
     const snapshot = await getDocs(collection(db, 'players'));
-    const players = snapshot.docs.map(item => ({ ...item.data(), uid: item.id })).sort((a, b) => rankStats(b).score - rankStats(a).score || rankStats(b).level - rankStats(a).level || String(a.displayName || '').localeCompare(String(b.displayName || ''), 'hu'));
+    const players = snapshot.docs.map(item => ({ ...item.data(), uid: item.id })).filter(player => !player.banned).sort((a, b) => rankStats(b).score - rankStats(a).score || rankStats(b).level - rankStats(a).level || String(a.displayName || '').localeCompare(String(b.displayName || ''), 'hu'));
     leaderboardPlayers = new Map(players.map((player, index) => [player.uid, { ...player, rank: index + 1 }]));
     const playerButton = (player, index, className = '') => `<button type="button" class="${className}" data-player-profile="${escapeHtml(player.uid)}"><span class="leader-rank">${index + 1}</span><strong>${escapeHtml(publicPlayerName(player))}</strong><small>${rankStats(player).score.toLocaleString('hu-HU')} pont</small></button>`;
     leaderboard.innerHTML = players.length ? `<div class="leaderboard-podium">${players.slice(0, 3).map((player, index) => playerButton(player, index, `leader-card rank-${index + 1}`)).join('')}</div><div class="leaderboard-list">${players.slice(3).map((player, index) => `<button type="button" class="leader-row" data-player-profile="${escapeHtml(player.uid)}"><span>${index + 4}.</span><strong>${escapeHtml(publicPlayerName(player))}</strong><small>${rankStats(player).score.toLocaleString('hu-HU')} pont</small></button>`).join('')}</div>` : '<p class="leaderboard-empty">Még nincs rangsorolt játékos.</p>';
