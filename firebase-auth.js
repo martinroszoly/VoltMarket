@@ -17,6 +17,7 @@ import {
   getFirestore,
   serverTimestamp,
   setDoc,
+  addDoc,
   collection,
   getDocs,
   deleteDoc,
@@ -38,6 +39,7 @@ const api = {
   sendPasswordResetEmail,
   serverTimestamp,
   setDoc,
+  addDoc,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
@@ -72,6 +74,8 @@ const adminLoadPlayers = document.querySelector('#adminLoadPlayers');
 const adminPlayers = document.querySelector('#adminPlayers');
 const supportPanel = document.querySelector('#supportPanel');
 const supportButton = document.querySelector('#supportButton');
+const supportMessageInput = document.querySelector('#supportMessageInput');
+const supportStatus = document.querySelector('#supportStatus');
 const accountDeleteButton = document.querySelector('#accountDeleteButton');
 const ADMIN_EMAIL = 'martin.roszoly2002@gmail.com';
 let registerMode = false;
@@ -261,12 +265,29 @@ supportButton?.addEventListener('click', () => {
   if (!user) return;
   const name = user.displayName || 'Névtelen játékos';
   const registered = user.metadata?.creationTime ? new Date(user.metadata.creationTime).toLocaleString('hu-HU') : 'nem elérhető';
-  const body = `Játékosnév: ${name}\nE-mail-cím: ${user.email || 'nem elérhető'}\nRegisztráció időpontja: ${registered}\n\nÜzenet:\n`;
-  const mailto = `mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent(`VoltMarket Support – ${name}`)}&body=${encodeURIComponent(body)}`;
-  window.location.assign(mailto);
-  setTimeout(() => {
-    if (document.visibilityState === 'visible') setSyncStatus(`Ha nem nyílt meg a levelező, írj ide: ${ADMIN_EMAIL}`);
-  }, 900);
+  const message = supportMessageInput?.value.trim() || '';
+  if (!message) {
+    if (supportStatus) supportStatus.textContent = 'Írd le röviden, miben segíthetünk.';
+    supportMessageInput?.focus();
+    return;
+  }
+  supportButton.disabled = true;
+  try {
+    await addDoc(collection(db, 'supportMessages'), {
+      uid: user.uid,
+      playerName: name,
+      email: user.email || '',
+      registrationTime: user.metadata?.creationTime || null,
+      message,
+      createdAt: serverTimestamp(),
+      status: 'new',
+    });
+    supportMessageInput.value = '';
+    if (supportStatus) supportStatus.textContent = 'Üzeneted elküldve az adminnak.';
+  } catch (error) {
+    console.warn('Support message failed', error);
+    if (supportStatus) supportStatus.textContent = 'Az üzenet nem küldhető el. Próbáld újra.';
+  } finally { supportButton.disabled = false; }
 });
 accountDeleteButton?.addEventListener('click', async () => {
   const user = auth.currentUser;
