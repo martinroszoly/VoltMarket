@@ -475,6 +475,36 @@ adminLoadSupport?.addEventListener('click', async () => {
   } catch (error) { console.warn('Support inbox failed', error); adminSupportMessages.textContent = 'A Support-üzenetek nem tölthetők be.'; }
   finally { adminLoadSupport.disabled = false; }
 });
+
+async function deletePlayerSupportMessages(uid, email) {
+  const messageDocs = new Map();
+  let queryFailed = false;
+  const filters = [where('uid', '==', uid)];
+  if (email) filters.push(where('email', '==', email));
+
+  for (const filter of filters) {
+    try {
+      const snapshot = await getDocs(query(collection(db, 'supportMessages'), filter));
+      snapshot.docs.forEach(item => messageDocs.set(item.id, item));
+    } catch (error) {
+      queryFailed = true;
+      console.warn('Support message lookup failed during ban', error);
+    }
+  }
+
+  let deleteFailed = false;
+  await Promise.all([...messageDocs.values()].map(async item => {
+    try { await deleteDoc(item.ref); }
+    catch (error) {
+      deleteFailed = true;
+      console.warn('Support message deletion failed during ban', error);
+    }
+  }));
+
+  supportUnreadByUid.delete(uid);
+  return { failed: queryFailed || deleteFailed };
+}
+
 adminPlayers?.addEventListener('click', async (event) => {
   const row = event.target.closest('[data-admin-uid]');
   if (!row || auth.currentUser?.email !== ADMIN_EMAIL) return;
@@ -555,13 +585,17 @@ adminPlayers?.addEventListener('click', async (event) => {
       } catch (registryError) { console.warn('Admin ban registry write failed', registryError); }
       try { await setDoc(doc(db, 'bannedEmails', email), banRecord, { merge: true }); directSaved = true; }
       catch (banRecordError) { console.warn('Banned e-mail collection write failed; using registry fallback', banRecordError); }
-      // Keep a tombstone on the target profile as an additional fallback.
-      try { await setDoc(targetRef, { banned: true, bannedAt: serverTimestamp(), bannedBy: auth.currentUser.email }, { merge: true }); playerFlagSaved = true; }
+      const messageCleanup = await deletePlayerSupportMessages(row.dataset.adminUid, email);
+      // Keep a tombstone on the target profile as an additional fallback and
+      // remove legacy messages stored directly in the player document.
+      try { await setDoc(targetRef, { banned: true, bannedAt: serverTimestamp(), bannedBy: auth.currentUser.email, supportMessages: [] }, { merge: true }); playerFlagSaved = true; }
       catch (playerFlagError) { console.warn('Player ban flag write failed; registry fallback remains active', playerFlagError); }
       if (!registrySaved && !directSaved && !playerFlagSaved) throw new Error('No ban record could be written');
       row.remove();
       await loadLeaderboard();
-      toast('Az e-mail-cím bannolva.');
+      if (adminSupportMessages) adminSupportMessages.innerHTML = '';
+      if (messageCleanup.failed) toast('A profil bannolva, de néhány Support-üzenet nem volt törölhető.');
+      else toast('A profil bannolva, a Support-üzenetei törölve.');
     } catch (error) { console.warn('Admin player ban failed', error); toast('A bannolás sikertelen.'); }
   }
 });
