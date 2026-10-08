@@ -13,5 +13,11 @@ service cloud.firestore {
       allow write: if request.auth != null
         && request.auth.token.email == 'martin.roszoly2002@gmail.com';
     }
+    match /supportMessages/{messageId} {
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid;
+      allow read, update, delete: if request.auth != null
+        && request.auth.token.email == 'martin.roszoly2002@gmail.com';
+    }
   }
 }
