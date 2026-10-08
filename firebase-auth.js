@@ -7,7 +7,6 @@ import {
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
-  updatePassword,
   deleteUser,
   getAuth,
   reload,
@@ -47,7 +46,6 @@ const api = {
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
-  updatePassword,
   deleteUser,
   reload,
   userDoc: (uid) => doc(db, 'players', uid),
@@ -91,7 +89,6 @@ const bannedModal = document.querySelector('#bannedModal');
 const bannedModalClose = document.querySelector('#bannedModalClose');
 const deletedProfileModal = document.querySelector('#deletedProfileModal');
 const deletedProfileName = document.querySelector('#deletedProfileName');
-const deletedProfilePassword = document.querySelector('#deletedProfilePassword');
 const deletedProfileStatus = document.querySelector('#deletedProfileStatus');
 const deletedProfileConfirm = document.querySelector('#deletedProfileConfirm');
 const deletedProfileCancel = document.querySelector('#deletedProfileCancel');
@@ -140,14 +137,14 @@ function authError(error) {
   };
   return messages[error?.code] || 'A művelet nem sikerült. Ellenőrizd az adatokat.';
 }
-async function persistNewPlayer(user, displayNameOverride = null) {
+async function persistNewPlayer(user, displayNameOverride = null, verificationRequired = true) {
   await setDoc(doc(db, 'players', user.uid), {
     uid: user.uid,
     email: user.email || '',
     displayName: displayNameOverride ?? user.displayName ?? '',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-    verificationRequired: true,
+    verificationRequired,
     profileDeleted: false,
     gameState: null,
     workshopState: null,
@@ -168,7 +165,8 @@ async function needsEmailVerification(user) {
     return snapshot.exists() && snapshot.data().verificationRequired === true;
   } catch (error) {
     console.warn('Verification status lookup failed', error);
-    return true;
+    // A temporary Firestore problem must never block a valid Firebase login.
+    return false;
   }
 }
 async function isEmailBanned(email, uid = '') {
@@ -228,7 +226,7 @@ form?.addEventListener('submit', async (event) => {
     }
   } catch (error) {
     if (registerMode && error?.code === 'auth/email-already-in-use') {
-      setStatus('Ehhez az e-mailhez már tartozik fiók. Válts Belépés módra; törölt profil esetén belépés után új játékosnevet és új jelszót kell megadnod.');
+      setStatus('Ehhez az e-mailhez már tartozik fiók. Válts Belépés módra; törölt profil esetén belépés után új játékosnevet kell megadnod.');
     } else setStatus(authError(error));
   }
   finally { registrationInProgress = false; submitButton.disabled = false; }
@@ -255,26 +253,16 @@ function showDeletedProfileSetup() {
 deletedProfileConfirm?.addEventListener('click', async () => {
   const user = auth.currentUser;
   const freshName = deletedProfileName?.value.trim() || '';
-  const freshPassword = deletedProfilePassword?.value || '';
   if (!user) return;
   if (freshName.length < 2) {
     deletedProfileStatus.textContent = 'Adj meg legalább 2 karakteres új játékosnevet.';
-    return;
-  }
-  if (freshPassword.length < 6) {
-    deletedProfileStatus.textContent = 'Az új jelszó legalább 6 karakter legyen.';
-    return;
-  }
-  if (passwordInput?.value && freshPassword === passwordInput.value) {
-    deletedProfileStatus.textContent = 'Az új jelszó legyen eltérő a korábbi jelszótól.';
     return;
   }
   deletedProfileConfirm.disabled = true;
   deletedProfileStatus.textContent = 'Új profil létrehozása…';
   try {
     await updateProfile(user, { displayName: freshName });
-    await updatePassword(user, freshPassword);
-    await persistNewPlayer(user, freshName);
+    await persistNewPlayer(user, freshName, false);
     await setDoc(doc(db, 'players', user.uid), { verificationRequired: false, profileDeleted: false, lastLoginAt: serverTimestamp() }, { merge: true });
     activatePlayerStorage(user.uid);
     window.VoltStorage?.remove('voltmarket-save');
@@ -283,9 +271,7 @@ deletedProfileConfirm?.addEventListener('click', async () => {
     window.location.replace('./index.html');
   } catch (error) {
     console.warn('Deleted profile restart failed', error);
-    deletedProfileStatus.textContent = error?.code === 'auth/requires-recent-login'
-      ? 'Jelentkezz be újra a régi jelszóval, majd próbáld ismét.'
-      : 'Az új profil létrehozása nem sikerült. Próbáld újra.';
+    deletedProfileStatus.textContent = 'Az új profil létrehozása nem sikerült. Próbáld újra.';
     deletedProfileConfirm.disabled = false;
   }
 });
@@ -299,8 +285,12 @@ onAuthStateChanged(auth, async (user) => {
   clearInterval(remoteStateTimer);
   if (!user) activatePlayerStorage(null, true);
   if (user?.email && await isEmailBanned(user.email, user.uid)) {
+    sessionStorage.setItem('volt-banned-login', '1');
     await signOut(auth);
-    if (isAuthPage) { setStatus('Ez az e-mail-cím bannolva van, a fiók nem használható.'); if (bannedModal) bannedModal.hidden = false; }
+    if (isAuthPage) {
+      setStatus('Ez az e-mail-cím bannolva van, a fiók nem használható.');
+      if (bannedModal) bannedModal.hidden = false;
+    } else window.location.replace('./auth.html');
     return;
   }
   if (user && registrationInProgress) return;
@@ -313,14 +303,16 @@ onAuthStateChanged(auth, async (user) => {
   if (user && !registrationInProgress) {
     try {
       const profile = await getDoc(doc(db, 'players', user.uid));
-      if (!profile.exists() || profile.data()?.profileDeleted === true) {
+      if (profile.data()?.profileDeleted === true) {
         showDeletedProfileSetup();
         return;
       }
+      // Legacy Firebase users without a player document are normal users,
+      // not deleted profiles. Create their missing game profile and continue.
+      if (!profile.exists()) await persistNewPlayer(user, user.displayName || 'VoltMarket játékos', false);
     } catch (error) {
       console.warn('Deleted profile check failed', error);
-      if (isAuthPage) setStatus('A profil állapota most nem ellenőrizhető. Próbáld újra.');
-      return;
+      // A Firestore read error must not prevent navigation after valid auth.
     }
   }
   if (user && isAuthPage) {
@@ -332,7 +324,16 @@ onAuthStateChanged(auth, async (user) => {
   }
   document.body.classList.toggle('auth-required', !user);
   if (gate) gate.hidden = Boolean(user);
-  if (!user) { setMode(false); setSyncStatus('Nincs bejelentkezett fiók'); return; }
+  if (!user) {
+    setMode(false);
+    setSyncStatus('Nincs bejelentkezett fiók');
+    if (isAuthPage && sessionStorage.getItem('volt-banned-login') === '1') {
+      sessionStorage.removeItem('volt-banned-login');
+      setStatus('Ez az e-mail-cím bannolva van, a fiók nem használható.');
+      if (bannedModal) bannedModal.hidden = false;
+    }
+    return;
+  }
   const isAdmin = user.email?.toLowerCase() === ADMIN_EMAIL;
   if (adminPanel) adminPanel.hidden = !isAdmin;
   if (supportPanel) supportPanel.hidden = false;
@@ -347,7 +348,7 @@ onAuthStateChanged(auth, async (user) => {
     // account is loading on the same device.
     activatePlayerStorage(user.uid);
     const snapshot = await getDoc(doc(db, 'players', user.uid));
-    const profileWasDeleted = !snapshot.exists() || snapshot.data()?.profileDeleted === true;
+    const profileWasDeleted = snapshot.data()?.profileDeleted === true;
     if (snapshot.data()?.banned) {
       await signOut(auth);
       if (isAuthPage) { setStatus('Sajnáljuk, ezt az e-mail-címet letiltottuk.'); if (bannedModal) bannedModal.hidden = false; }
@@ -631,7 +632,7 @@ adminPlayers?.addEventListener('click', async (event) => {
     } catch (error) { console.warn('Admin player update failed', error); toast('A játékos profilja nem frissíthető.'); }
   }
   if (event.target.closest('.admin-delete-player')) {
-    if (!confirm('Törlöd ennek a játékosnak a mentett VoltMarket-profilját? A következő belépéskor új játékosnevet és új jelszót kell megadnia.')) return;
+    if (!confirm('Törlöd ennek a játékosnak a mentett VoltMarket-profilját? A következő belépéskor új játékosnevet kell megadnia.')) return;
     try {
       await setDoc(targetRef, {
         profileDeleted: true,
@@ -651,7 +652,7 @@ adminPlayers?.addEventListener('click', async (event) => {
       }, { merge: true });
       row.remove();
       await loadLeaderboard();
-      toast('A profil törölve. Következő belépéskor új név és új jelszó kötelező.');
+      toast('A profil törölve. Következő belépéskor új játékosnév kötelező.');
     }
     catch (error) { console.warn('Admin player delete failed', error); toast('A játékos profilja nem törölhető.'); }
   }
