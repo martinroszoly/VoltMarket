@@ -7,6 +7,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
+  updatePassword,
   deleteUser,
   getAuth,
   reload,
@@ -43,6 +44,7 @@ const api = {
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
+  updatePassword,
   deleteUser,
   reload,
   userDoc: (uid) => doc(db, 'players', uid),
@@ -110,11 +112,11 @@ function authError(error) {
   };
   return messages[error?.code] || 'A művelet nem sikerült. Ellenőrizd az adatokat.';
 }
-async function persistNewPlayer(user) {
+async function persistNewPlayer(user, displayNameOverride = null) {
   await setDoc(doc(db, 'players', user.uid), {
     uid: user.uid,
     email: user.email || '',
-    displayName: user.displayName || '',
+    displayName: displayNameOverride ?? user.displayName ?? '',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     verificationRequired: true,
@@ -231,7 +233,21 @@ onAuthStateChanged(auth, async (user) => {
     const snapshot = await getDoc(doc(db, 'players', user.uid));
     const profileWasDeleted = !snapshot.exists();
     if (profileWasDeleted) {
-      await persistNewPlayer(user);
+      const freshName = window.prompt('A profil törölve lett. Add meg újra a játékosnevedet:')?.trim();
+      if (!freshName) {
+        await signOut(auth);
+        setSyncStatus('A belépéshez új játékosnevet kell megadnod.');
+        return;
+      }
+      const freshPassword = window.prompt('Adj meg egy új jelszót (legalább 6 karakter):') || '';
+      if (freshPassword.length < 6) {
+        await signOut(auth);
+        setSyncStatus('A belépéshez legalább 6 karakteres új jelszó szükséges.');
+        return;
+      }
+      await updateProfile(user, { displayName: freshName });
+      await updatePassword(user, freshPassword);
+      await persistNewPlayer(user, freshName);
       // A deleted profile must start cleanly and must never inherit another
       // account's or the deleted profile's browser-local save.
       localStorage.removeItem('voltmarket-save');
