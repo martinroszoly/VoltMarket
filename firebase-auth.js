@@ -72,6 +72,8 @@ const accountNameSave = document.querySelector('#accountNameSave');
 const adminPanel = document.querySelector('#adminPanel');
 const adminLoadPlayers = document.querySelector('#adminLoadPlayers');
 const adminPlayers = document.querySelector('#adminPlayers');
+const adminLoadSupport = document.querySelector('#adminLoadSupport');
+const adminSupportMessages = document.querySelector('#adminSupportMessages');
 const supportPanel = document.querySelector('#supportPanel');
 const supportButton = document.querySelector('#supportButton');
 const supportMessageInput = document.querySelector('#supportMessageInput');
@@ -346,6 +348,20 @@ adminLoadPlayers?.addEventListener('click', async () => {
     }).join('') || '<p>Nincs még játékosprofil.</p>';
   } catch (error) { adminPlayers.textContent = 'A játékoslista nem tölthető be.'; console.warn('Admin player list failed', error); }
   finally { adminLoadPlayers.disabled = false; }
+});
+adminLoadSupport?.addEventListener('click', async () => {
+  if (auth.currentUser?.email !== ADMIN_EMAIL || !adminSupportMessages) return;
+  adminLoadSupport.disabled = true;
+  try {
+    const snapshot = await getDocs(collection(db, 'supportMessages'));
+    const messages = snapshot.docs.map(item => ({ id: item.id, ...item.data() })).sort((a, b) => {
+      const at = a.createdAt?.toMillis?.() || 0;
+      const bt = b.createdAt?.toMillis?.() || 0;
+      return bt - at;
+    });
+    adminSupportMessages.innerHTML = messages.length ? messages.map(item => `<article class="support-message-card"><strong>${escapeHtml(item.playerName || 'Névtelen játékos')}</strong><small>${escapeHtml(item.email || '')}</small><p>${escapeHtml(item.message || '')}</p></article>`).join('') : '<p>Nincs új Support-üzenet.</p>';
+  } catch (error) { console.warn('Support inbox failed', error); adminSupportMessages.textContent = 'A Support-üzenetek nem tölthetők be.'; }
+  finally { adminLoadSupport.disabled = false; }
 });
 adminPlayers?.addEventListener('click', async (event) => {
   const row = event.target.closest('[data-admin-uid]');
