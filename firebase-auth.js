@@ -98,6 +98,9 @@ function authError(error) {
     'auth/invalid-email': 'Érvénytelen e-mail-cím.',
     'auth/too-many-requests': 'Túl sok próbálkozás. Próbáld meg később.',
     'auth/user-not-found': 'Hibás e-mail vagy jelszó.',
+    'auth/operation-not-allowed': 'A regisztráció e-maillel jelenleg nincs engedélyezve a Firebase-ben.',
+    'auth/network-request-failed': 'Hálózati hiba történt. Ellenőrizd az internetkapcsolatot.',
+    'auth/missing-password': 'Add meg a jelszavadat.',
   };
   return messages[error?.code] || 'A művelet nem sikerült. Ellenőrizd az adatokat.';
 }
@@ -159,7 +162,11 @@ form?.addEventListener('submit', async (event) => {
         await setDoc(doc(db, 'players', credential.user.uid), { verificationRequired: false }, { merge: true });
       }
     }
-  } catch (error) { setStatus(authError(error)); }
+  } catch (error) {
+    if (registerMode && error?.code === 'auth/email-already-in-use') {
+      setStatus('Ezzel az e-maillel már van Firebase-fiók. Válts Belépés módra; a törölt profil belépéskor újra létrejön.');
+    } else setStatus(authError(error));
+  }
   finally { submitButton.disabled = false; }
 });
 modeButton?.addEventListener('click', () => setMode(!registerMode));
@@ -200,7 +207,14 @@ onAuthStateChanged(auth, async (user) => {
   if (accountNameInput) accountNameInput.value = user.displayName || '';
   try {
     const snapshot = await getDoc(doc(db, 'players', user.uid));
-    if (!snapshot.exists()) await persistNewPlayer(user);
+    const profileWasDeleted = !snapshot.exists();
+    if (profileWasDeleted) {
+      await persistNewPlayer(user);
+      // A deleted profile must start cleanly and must never inherit another
+      // account's or the deleted profile's browser-local save.
+      localStorage.removeItem('voltmarket-save');
+      localStorage.removeItem('voltmarket-workshop');
+    }
     await setDoc(doc(db, 'players', user.uid), {
       uid: user.uid,
       email: user.email || '',
@@ -211,6 +225,11 @@ onAuthStateChanged(auth, async (user) => {
     }, { merge: true });
     setSyncStatus('Firebase-szinkronizáció aktív');
     await loadLeaderboard();
+    if (profileWasDeleted && sessionStorage.getItem('volt-cloud-restored-user') !== user.uid) {
+      sessionStorage.setItem('volt-cloud-restored-user', user.uid);
+      window.location.reload();
+      return;
+    }
     if (snapshot.exists() && snapshot.data().gameState) {
       localStorage.setItem('voltmarket-save', JSON.stringify(snapshot.data().gameState));
       if (snapshot.data().workshopState) localStorage.setItem('voltmarket-workshop', JSON.stringify(snapshot.data().workshopState));
