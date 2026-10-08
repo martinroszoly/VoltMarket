@@ -303,24 +303,10 @@ onAuthStateChanged(auth, async (user) => {
         window.location.reload();
       }
     }
-    // Keep an already-open player session in sync with admin edits to level and
-    // balance. The cloud value wins and the game reloads with the new state.
-    remoteStateTimer = setInterval(async () => {
-      if (!auth.currentUser) return;
-      try {
-        const latest = await getDoc(doc(db, 'players', auth.currentUser.uid));
-        const remote = latest.data()?.gameState;
-        if (!remote) return;
-        const local = JSON.parse(localStorage.getItem('voltmarket-save') || 'null');
-        const remoteName = latest.data()?.displayName || '';
-        if (!local || Number(local.level) !== Number(remote.level) || Number(local.balance) !== Number(remote.balance) || remoteName !== (auth.currentUser.displayName || '')) {
-          if (remoteName !== (auth.currentUser.displayName || '')) await updateProfile(auth.currentUser, { displayName: remoteName });
-          localStorage.setItem('voltmarket-save', JSON.stringify(remote));
-          if (latest.data()?.workshopState) localStorage.setItem('voltmarket-workshop', JSON.stringify(latest.data().workshopState));
-          window.location.reload();
-        }
-      } catch (error) { console.warn('Remote state refresh failed', error); }
-    }, 5000);
+    // Do not poll and reload an already-open game in the background. Reloading
+    // while the player is working is disruptive and can make the page appear
+    // to refresh by itself. Cloud changes are picked up on the next login or
+    // by a deliberate browser refresh.
   } catch (error) { console.warn('Player profile sync failed', error); }
 });
 bannedModalClose?.addEventListener('click', () => { if (bannedModal) bannedModal.hidden = true; });
