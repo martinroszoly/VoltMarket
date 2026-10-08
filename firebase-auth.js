@@ -95,6 +95,7 @@ const ADMIN_EMAIL = 'martin.roszoly2002@gmail.com';
 let registerMode = false;
 let syncTimer;
 let authRedirectTimer;
+let remoteStateTimer;
 
 function setStatus(message = '') { if (status) status.textContent = message; }
 function setSyncStatus(message) { if (cloudSyncStatus) cloudSyncStatus.textContent = message; }
@@ -217,6 +218,7 @@ logoutButton?.addEventListener('click', async () => {
 });
 onAuthStateChanged(auth, async (user) => {
   clearTimeout(authRedirectTimer);
+  clearInterval(remoteStateTimer);
   if (user?.email) {
     try {
       const banned = await getDoc(doc(db, 'bannedEmails', user.email.toLowerCase()));
@@ -296,6 +298,22 @@ onAuthStateChanged(auth, async (user) => {
         window.location.reload();
       }
     }
+    // Keep an already-open player session in sync with admin edits to level and
+    // balance. The cloud value wins and the game reloads with the new state.
+    remoteStateTimer = setInterval(async () => {
+      if (!auth.currentUser) return;
+      try {
+        const latest = await getDoc(doc(db, 'players', auth.currentUser.uid));
+        const remote = latest.data()?.gameState;
+        if (!remote) return;
+        const local = JSON.parse(localStorage.getItem('voltmarket-save') || 'null');
+        if (!local || Number(local.level) !== Number(remote.level) || Number(local.balance) !== Number(remote.balance)) {
+          localStorage.setItem('voltmarket-save', JSON.stringify(remote));
+          if (latest.data()?.workshopState) localStorage.setItem('voltmarket-workshop', JSON.stringify(latest.data().workshopState));
+          window.location.reload();
+        }
+      } catch (error) { console.warn('Remote state refresh failed', error); }
+    }, 5000);
   } catch (error) { console.warn('Player profile sync failed', error); }
 });
 async function loadSupportChat() {
