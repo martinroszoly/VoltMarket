@@ -89,6 +89,12 @@ const supportChatInput = document.querySelector('#supportChatInput');
 const supportChatSend = document.querySelector('#supportChatSend');
 const bannedModal = document.querySelector('#bannedModal');
 const bannedModalClose = document.querySelector('#bannedModalClose');
+const deletedProfileModal = document.querySelector('#deletedProfileModal');
+const deletedProfileName = document.querySelector('#deletedProfileName');
+const deletedProfilePassword = document.querySelector('#deletedProfilePassword');
+const deletedProfileStatus = document.querySelector('#deletedProfileStatus');
+const deletedProfileConfirm = document.querySelector('#deletedProfileConfirm');
+const deletedProfileCancel = document.querySelector('#deletedProfileCancel');
 let supportChatTargetUid = null;
 const supportUnreadByUid = new Map();
 const supportMessageTime = value => Number(value?.toMillis?.() || value || 0);
@@ -98,6 +104,7 @@ let registerMode = false;
 let syncTimer;
 let authRedirectTimer;
 let remoteStateTimer;
+let registrationInProgress = false;
 
 function activatePlayerStorage(uid, notify = false) {
   if (uid) {
@@ -196,6 +203,7 @@ form?.addEventListener('submit', async (event) => {
         setStatus('Ezzel az e-mail-címmel nem lehet új profilt létrehozni.');
         return;
       }
+      registrationInProgress = true;
       const credential = await createUserWithEmailAndPassword(auth, email, password);
       const displayName = nameInput.value.trim();
       if (displayName) await updateProfile(credential.user, { displayName });
@@ -223,7 +231,7 @@ form?.addEventListener('submit', async (event) => {
       setStatus('Ehhez az e-mailhez már tartozik fiók. Válts Belépés módra; törölt profil esetén belépés után új játékosnevet és új jelszót kell megadnod.');
     } else setStatus(authError(error));
   }
-  finally { submitButton.disabled = false; }
+  finally { registrationInProgress = false; submitButton.disabled = false; }
 });
 modeButton?.addEventListener('click', () => setMode(!registerMode));
 resetButton?.addEventListener('click', async () => {
@@ -237,6 +245,55 @@ logoutButton?.addEventListener('click', async () => {
   try { sessionStorage.removeItem('volt-cloud-restored-user'); await signOut(auth); }
   catch (error) { console.warn('Logout failed', error); logoutButton.disabled = false; }
 });
+function showDeletedProfileSetup() {
+  if (!deletedProfileModal) return;
+  if (gate) gate.hidden = true;
+  deletedProfileModal.hidden = false;
+  if (deletedProfileStatus) deletedProfileStatus.textContent = '';
+  deletedProfileName?.focus();
+}
+deletedProfileConfirm?.addEventListener('click', async () => {
+  const user = auth.currentUser;
+  const freshName = deletedProfileName?.value.trim() || '';
+  const freshPassword = deletedProfilePassword?.value || '';
+  if (!user) return;
+  if (freshName.length < 2) {
+    deletedProfileStatus.textContent = 'Adj meg legalább 2 karakteres új játékosnevet.';
+    return;
+  }
+  if (freshPassword.length < 6) {
+    deletedProfileStatus.textContent = 'Az új jelszó legalább 6 karakter legyen.';
+    return;
+  }
+  if (passwordInput?.value && freshPassword === passwordInput.value) {
+    deletedProfileStatus.textContent = 'Az új jelszó legyen eltérő a korábbi jelszótól.';
+    return;
+  }
+  deletedProfileConfirm.disabled = true;
+  deletedProfileStatus.textContent = 'Új profil létrehozása…';
+  try {
+    await updateProfile(user, { displayName: freshName });
+    await updatePassword(user, freshPassword);
+    await persistNewPlayer(user, freshName);
+    await setDoc(doc(db, 'players', user.uid), { verificationRequired: false, profileDeleted: false, lastLoginAt: serverTimestamp() }, { merge: true });
+    activatePlayerStorage(user.uid);
+    window.VoltStorage?.remove('voltmarket-save');
+    window.VoltStorage?.remove('voltmarket-workshop');
+    sessionStorage.removeItem('volt-cloud-restored-user');
+    window.location.replace('./index.html');
+  } catch (error) {
+    console.warn('Deleted profile restart failed', error);
+    deletedProfileStatus.textContent = error?.code === 'auth/requires-recent-login'
+      ? 'Jelentkezz be újra a régi jelszóval, majd próbáld ismét.'
+      : 'Az új profil létrehozása nem sikerült. Próbáld újra.';
+    deletedProfileConfirm.disabled = false;
+  }
+});
+deletedProfileCancel?.addEventListener('click', async () => {
+  await signOut(auth);
+  if (deletedProfileModal) deletedProfileModal.hidden = true;
+  if (gate) gate.hidden = false;
+});
 onAuthStateChanged(auth, async (user) => {
   clearTimeout(authRedirectTimer);
   clearInterval(remoteStateTimer);
@@ -246,11 +303,25 @@ onAuthStateChanged(auth, async (user) => {
     if (isAuthPage) { setStatus('Ez az e-mail-cím bannolva van, a fiók nem használható.'); if (bannedModal) bannedModal.hidden = false; }
     return;
   }
+  if (user && registrationInProgress) return;
   if (user && await needsEmailVerification(user)) {
     if (!isAuthPage) window.location.replace('./auth.html');
     setStatus('A belépéshez erősítsd meg az e-mail-címedet.');
     if (verifyButton) verifyButton.hidden = false;
     return;
+  }
+  if (user && !registrationInProgress) {
+    try {
+      const profile = await getDoc(doc(db, 'players', user.uid));
+      if (!profile.exists() || profile.data()?.profileDeleted === true) {
+        showDeletedProfileSetup();
+        return;
+      }
+    } catch (error) {
+      console.warn('Deleted profile check failed', error);
+      if (isAuthPage) setStatus('A profil állapota most nem ellenőrizhető. Próbáld újra.');
+      return;
+    }
   }
   if (user && isAuthPage) {
     window.location.replace('./index.html');
@@ -283,25 +354,8 @@ onAuthStateChanged(auth, async (user) => {
       return;
     }
     if (profileWasDeleted) {
-      const freshName = window.prompt('A profil törölve lett. Add meg újra a játékosnevedet:')?.trim();
-      if (!freshName) {
-        await signOut(auth);
-        setSyncStatus('A belépéshez új játékosnevet kell megadnod.');
-        return;
-      }
-      const freshPassword = window.prompt('Adj meg egy új jelszót (legalább 6 karakter):') || '';
-      if (freshPassword.length < 6) {
-        await signOut(auth);
-        setSyncStatus('A belépéshez legalább 6 karakteres új jelszó szükséges.');
-        return;
-      }
-      await updateProfile(user, { displayName: freshName });
-      await updatePassword(user, freshPassword);
-      await persistNewPlayer(user, freshName);
-      // A deleted profile must start cleanly and must never inherit another
-      // account's or the deleted profile's browser-local save.
-      window.VoltStorage?.remove('voltmarket-save');
-      window.VoltStorage?.remove('voltmarket-workshop');
+      showDeletedProfileSetup();
+      return;
     }
     const cloudName = snapshot.data()?.displayName?.trim() || '';
     if (!isAdmin && cloudName && cloudName !== user.displayName) await updateProfile(user, { displayName: cloudName });
