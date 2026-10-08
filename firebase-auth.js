@@ -141,8 +141,15 @@ async function persistNewPlayer(user, displayNameOverride = null) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     verificationRequired: true,
+    profileDeleted: false,
     gameState: null,
     workshopState: null,
+    level: 1,
+    xp: 0,
+    balance: 0,
+    score: 0,
+    rankPointAdjustment: 0,
+    adminOverride: null,
   }, { merge: true });
 }
 async function needsEmailVerification(user) {
@@ -203,28 +210,17 @@ form?.addEventListener('submit', async (event) => {
         setStatus('A belépéshez előbb erősítsd meg az e-mail-címedet.');
         if (verifyButton) verifyButton.hidden = false;
       } else {
-        await setDoc(doc(db, 'players', credential.user.uid), { verificationRequired: false }, { merge: true });
+        // Do not recreate a profile deleted by the admin during sign-in.
+        // Its missing document triggers the mandatory new name/password flow.
+        const existingProfile = await getDoc(doc(db, 'players', credential.user.uid));
+        if (existingProfile.exists()) {
+          await setDoc(existingProfile.ref, { verificationRequired: false }, { merge: true });
+        }
       }
     }
   } catch (error) {
     if (registerMode && error?.code === 'auth/email-already-in-use') {
-      // An admin profile deletion removes the game profile, but cannot delete
-      // another user's Firebase Auth identity from a static client. Reuse the
-      // same credentials to recreate a deleted profile from this form.
-      try {
-        const credential = await signInWithEmailAndPassword(auth, email, password);
-        const existing = await getDoc(doc(db, 'players', credential.user.uid));
-        if (!existing.exists()) {
-          const displayName = nameInput.value.trim();
-          if (displayName) await updateProfile(credential.user, { displayName });
-          await persistNewPlayer(credential.user);
-          setStatus('A törölt profil újra létrejött. Betöltés…');
-          return;
-        }
-      } catch (reactivationError) {
-        console.warn('Deleted profile reactivation failed', reactivationError);
-      }
-      setStatus('Ezzel az e-maillel már van Firebase-fiók. Törölt profilnál használd a korábbi jelszót, vagy válts Belépés módra.');
+      setStatus('Ehhez az e-mailhez már tartozik fiók. Válts Belépés módra; törölt profil esetén belépés után új játékosnevet és új jelszót kell megadnod.');
     } else setStatus(authError(error));
   }
   finally { submitButton.disabled = false; }
@@ -280,7 +276,7 @@ onAuthStateChanged(auth, async (user) => {
     // account is loading on the same device.
     activatePlayerStorage(user.uid);
     const snapshot = await getDoc(doc(db, 'players', user.uid));
-    const profileWasDeleted = !snapshot.exists();
+    const profileWasDeleted = !snapshot.exists() || snapshot.data()?.profileDeleted === true;
     if (snapshot.data()?.banned) {
       await signOut(auth);
       if (isAuthPage) { setStatus('Sajnáljuk, ezt az e-mail-címet letiltottuk.'); if (bannedModal) bannedModal.hidden = false; }
@@ -480,7 +476,7 @@ adminLoadPlayers?.addEventListener('click', async () => {
     const bannedEmails = new Set((Array.isArray(adminProfile.bannedEmails) ? adminProfile.bannedEmails : []).map(value => String(value).trim().toLowerCase()));
     adminPlayers.innerHTML = snapshot.docs.filter(item => {
       const player = item.data();
-      return player.banned !== true && !bannedEmails.has(String(player.email || '').trim().toLowerCase());
+      return player.profileDeleted !== true && player.banned !== true && !bannedEmails.has(String(player.email || '').trim().toLowerCase());
     }).map((item) => {
       const player = item.data();
       const game = player.gameState && typeof player.gameState === 'object' ? player.gameState : {};
@@ -581,8 +577,28 @@ adminPlayers?.addEventListener('click', async (event) => {
     } catch (error) { console.warn('Admin player update failed', error); toast('A játékos profilja nem frissíthető.'); }
   }
   if (event.target.closest('.admin-delete-player')) {
-    if (!confirm('Törlöd ennek a játékosnak a mentett VoltMarket-profilját? A bejelentkezési fiók megmarad.')) return;
-    try { await deleteDoc(targetRef); row.remove(); await loadLeaderboard(); toast('A játékos profilja törölve.'); }
+    if (!confirm('Törlöd ennek a játékosnak a mentett VoltMarket-profilját? A következő belépéskor új játékosnevet és új jelszót kell megadnia.')) return;
+    try {
+      await setDoc(targetRef, {
+        profileDeleted: true,
+        deletedAt: serverTimestamp(),
+        deletedBy: auth.currentUser.email,
+        displayName: '',
+        gameState: null,
+        workshopState: null,
+        level: 1,
+        xp: 0,
+        balance: 0,
+        score: 0,
+        rankPointAdjustment: 0,
+        adminOverride: null,
+        supportMessages: [],
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      row.remove();
+      await loadLeaderboard();
+      toast('A profil törölve. Következő belépéskor új név és új jelszó kötelező.');
+    }
     catch (error) { console.warn('Admin player delete failed', error); toast('A játékos profilja nem törölhető.'); }
   }
   if (event.target.closest('.admin-ban-player')) {
@@ -632,6 +648,12 @@ window.addEventListener('volt-state-changed', (event) => {
     try {
       const playerRef = doc(db, 'players', user.uid);
       const current = await getDoc(playerRef);
+      if (current.data()?.profileDeleted === true) {
+        clearTimeout(syncTimer);
+        await signOut(auth);
+        window.location.replace('./auth.html');
+        return;
+      }
       const override = current.data()?.adminOverride;
       const nextState = { ...event.detail };
       // If an older tab sends its stale state after an admin edit, preserve the
@@ -754,7 +776,7 @@ async function loadLeaderboard() {
   if (!leaderboard || !auth.currentUser) return;
   try {
     const snapshot = await getDocs(collection(db, 'players'));
-    const players = snapshot.docs.map(item => ({ ...item.data(), uid: item.id })).filter(player => !player.banned).sort((a, b) => rankStats(b).score - rankStats(a).score || rankStats(b).level - rankStats(a).level || String(a.displayName || '').localeCompare(String(b.displayName || ''), 'hu'));
+    const players = snapshot.docs.map(item => ({ ...item.data(), uid: item.id })).filter(player => !player.profileDeleted && !player.banned).sort((a, b) => rankStats(b).score - rankStats(a).score || rankStats(b).level - rankStats(a).level || String(a.displayName || '').localeCompare(String(b.displayName || ''), 'hu'));
     leaderboardPlayers = new Map(players.map((player, index) => [player.uid, { ...player, rank: index + 1 }]));
     const playerButton = (player, index, className = '') => `<button type="button" class="${className}" data-player-profile="${escapeHtml(player.uid)}"><span class="leader-rank">${index + 1}</span><strong>${escapeHtml(publicPlayerName(player))}</strong><small>${rankStats(player).score.toLocaleString('hu-HU')} pont</small></button>`;
     leaderboard.innerHTML = players.length ? `<div class="leaderboard-podium">${players.slice(0, 3).map((player, index) => playerButton(player, index, `leader-card rank-${index + 1}`)).join('')}</div><div class="leaderboard-list">${players.slice(3).map((player, index) => `<button type="button" class="leader-row" data-player-profile="${escapeHtml(player.uid)}"><span>${index + 4}.</span><strong>${escapeHtml(publicPlayerName(player))}</strong><small>${rankStats(player).score.toLocaleString('hu-HU')} pont</small></button>`).join('')}</div>` : '<p class="leaderboard-empty">Még nincs rangsorolt játékos.</p>';
