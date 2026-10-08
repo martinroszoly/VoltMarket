@@ -19,6 +19,8 @@ import {
   serverTimestamp,
   setDoc,
   addDoc,
+  query,
+  where,
   collection,
   getDocs,
   deleteDoc,
@@ -80,6 +82,11 @@ const supportPanel = document.querySelector('#supportPanel');
 const supportButton = document.querySelector('#supportButton');
 const supportMessageInput = document.querySelector('#supportMessageInput');
 const supportStatus = document.querySelector('#supportStatus');
+const supportChatModal = document.querySelector('#supportChatModal');
+const supportChatClose = document.querySelector('#supportChatClose');
+const supportChatMessages = document.querySelector('#supportChatMessages');
+const supportChatInput = document.querySelector('#supportChatInput');
+const supportChatSend = document.querySelector('#supportChatSend');
 const accountDeleteButton = document.querySelector('#accountDeleteButton');
 const ADMIN_EMAIL = 'martin.roszoly2002@gmail.com';
 let registerMode = false;
@@ -288,35 +295,32 @@ onAuthStateChanged(auth, async (user) => {
     }
   } catch (error) { console.warn('Player profile sync failed', error); }
 });
-supportButton?.addEventListener('click', async () => {
+async function loadSupportChat() {
   const user = auth.currentUser;
-  if (!user) return;
-  const name = user.displayName || 'Névtelen játékos';
-  const registered = user.metadata?.creationTime ? new Date(user.metadata.creationTime).toLocaleString('hu-HU') : 'nem elérhető';
-  const message = supportMessageInput?.value.trim() || '';
-  if (!message) {
-    if (supportStatus) supportStatus.textContent = 'Írd le röviden, miben segíthetünk.';
-    supportMessageInput?.focus();
-    return;
-  }
-  supportButton.disabled = true;
+  if (!user || !supportChatMessages) return;
   try {
-    await addDoc(collection(db, 'supportMessages'), {
-      uid: user.uid,
-      playerName: name,
-      email: user.email || '',
-      registrationTime: user.metadata?.creationTime || null,
-      message,
-      createdAt: serverTimestamp(),
-      status: 'new',
-    });
-    supportMessageInput.value = '';
-    if (supportStatus) supportStatus.textContent = 'Üzeneted elküldve az adminnak.';
-  } catch (error) {
-    console.warn('Support message failed', error);
-    if (supportStatus) supportStatus.textContent = 'Az üzenet nem küldhető el. Próbáld újra.';
-  } finally { supportButton.disabled = false; }
+    const snapshot = await getDocs(query(collection(db, 'supportMessages'), where('uid', '==', user.uid)));
+    const messages = snapshot.docs.map(item => item.data()).sort((a, b) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
+    supportChatMessages.innerHTML = messages.length ? messages.map(item => `<div class="support-chat-bubble ${item.sender === 'admin' ? 'is-admin' : 'is-player'}"><p>${escapeHtml(item.message || '')}</p><small>${item.sender === 'admin' ? 'VoltMarket Support' : 'Te'}</small></div>`).join('') : '<p class="support-chat-empty">Írj az adminnak, és itt folytathatjátok a beszélgetést.</p>';
+    supportChatMessages.scrollTop = supportChatMessages.scrollHeight;
+  } catch (error) { console.warn('Support chat load failed', error); supportChatMessages.textContent = 'A Support-chat nem tölthető be.'; }
+}
+supportButton?.addEventListener('click', async () => { supportChatModal.hidden = false; await loadSupportChat(); supportChatInput?.focus(); });
+supportChatClose?.addEventListener('click', () => { supportChatModal.hidden = true; });
+supportChatModal?.addEventListener('click', event => { if (event.target === supportChatModal) supportChatModal.hidden = true; });
+supportChatSend?.addEventListener('click', async () => {
+  const user = auth.currentUser;
+  const message = supportChatInput?.value.trim() || '';
+  if (!user || !message) return;
+  supportChatSend.disabled = true;
+  try {
+    await addDoc(collection(db, 'supportMessages'), { uid: user.uid, playerName: user.displayName || 'Névtelen játékos', email: user.email || '', message, sender: 'player', createdAt: serverTimestamp(), status: 'new' });
+    supportChatInput.value = '';
+    await loadSupportChat();
+  } catch (error) { console.warn('Support chat send failed', error); }
+  finally { supportChatSend.disabled = false; }
 });
+supportChatInput?.addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); supportChatSend?.click(); } });
 accountDeleteButton?.addEventListener('click', async () => {
   const user = auth.currentUser;
   if (!user || !confirm('Véglegesen törlöd a saját VoltMarket-profilodat és bejelentkezési fiókodat?')) return;
