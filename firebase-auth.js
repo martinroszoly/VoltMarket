@@ -131,10 +131,16 @@ form?.addEventListener('submit', async (event) => {
     const email = emailInput.value.trim();
     const password = passwordInput.value;
     if (registerMode) {
-      const banned = await getDoc(doc(db, 'bannedEmails', email.toLowerCase()));
-      if (banned.exists()) {
-        setStatus('Ezzel az e-mail-címmel nem lehet új profilt létrehozni.');
-        return;
+      // A tiltólista ellenőrzése nem blokkolhatja a regisztrációt akkor sem,
+      // ha a Firestore-szabályok még propagálódnak vagy átmenetileg nem érhetők el.
+      try {
+        const banned = await getDoc(doc(db, 'bannedEmails', email.toLowerCase()));
+        if (banned.exists()) {
+          setStatus('Ezzel az e-mail-címmel nem lehet új profilt létrehozni.');
+          return;
+        }
+      } catch (banError) {
+        console.warn('Banned email lookup skipped', banError);
       }
       const credential = await createUserWithEmailAndPassword(auth, email, password);
       const displayName = nameInput.value.trim();
