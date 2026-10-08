@@ -78,8 +78,6 @@ const accountNameSave = document.querySelector('#accountNameSave');
 const adminPanel = document.querySelector('#adminPanel');
 const adminLoadPlayers = document.querySelector('#adminLoadPlayers');
 const adminPlayers = document.querySelector('#adminPlayers');
-const adminLoadSupport = document.querySelector('#adminLoadSupport');
-const adminSupportMessages = document.querySelector('#adminSupportMessages');
 const supportPanel = document.querySelector('#supportPanel');
 const supportButton = document.querySelector('#supportButton');
 const supportMessageInput = document.querySelector('#supportMessageInput');
@@ -439,6 +437,16 @@ adminLoadPlayers?.addEventListener('click', async () => {
   if (auth.currentUser?.email !== ADMIN_EMAIL) return;
   adminLoadPlayers.disabled = true;
   try {
+    supportUnreadByUid.clear();
+    try {
+      const supportSnapshot = await getDocs(collection(db, 'supportMessages'));
+      supportSnapshot.docs
+        .map(item => item.data())
+        .filter(item => item.status === 'new' && item.sender === 'player')
+        .forEach(item => supportUnreadByUid.set(item.uid, (supportUnreadByUid.get(item.uid) || 0) + 1));
+    } catch (supportError) {
+      console.warn('Support unread count could not be loaded', supportError);
+    }
     const snapshot = await getDocs(collection(db, 'players'));
     const adminProfile = snapshot.docs.find(item => item.id === auth.currentUser.uid)?.data() || {};
     const bannedEmails = new Set((Array.isArray(adminProfile.bannedEmails) ? adminProfile.bannedEmails : []).map(value => String(value).trim().toLowerCase()));
@@ -455,25 +463,6 @@ adminLoadPlayers?.addEventListener('click', async () => {
     }).join('') || '<p>Nincs még játékosprofil.</p>';
   } catch (error) { adminPlayers.textContent = 'A játékoslista nem tölthető be.'; console.warn('Admin player list failed', error); }
   finally { adminLoadPlayers.disabled = false; }
-});
-adminLoadSupport?.addEventListener('click', async () => {
-  if (auth.currentUser?.email !== ADMIN_EMAIL || !adminSupportMessages) return;
-  adminLoadSupport.disabled = true;
-  try {
-    let messages = [];
-    try {
-      const snapshot = await getDocs(collection(db, 'supportMessages'));
-      messages = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
-    } catch (collectionError) {
-      const players = await getDocs(collection(db, 'players'));
-      messages = players.docs.flatMap(item => (Array.isArray(item.data().supportMessages) ? item.data().supportMessages : []));
-    }
-    messages.sort((a, b) => Number(b.createdAt?.toMillis?.() || b.createdAt || 0) - Number(a.createdAt?.toMillis?.() || a.createdAt || 0));
-    supportUnreadByUid.clear(); messages.filter(item => item.status === 'new' && item.sender === 'player').forEach(item => supportUnreadByUid.set(item.uid, (supportUnreadByUid.get(item.uid) || 0) + 1));
-    const threads = [...messages.reduce((map, item) => { const key = item.uid || item.email || 'unknown'; if (!map.has(key)) map.set(key, []); map.get(key).push(item); return map; }, new Map()).entries()];
-    adminSupportMessages.innerHTML = threads.length ? threads.map(([, items]) => { const first = items[0]; const unread = items.filter(item => item.status === 'new').length; return `<details class="support-thread" open><summary><strong>${escapeHtml(first.playerName || 'Névtelen játékos')}</strong><small>${escapeHtml(first.email || '')}</small>${unread ? `<b class="support-unread">${unread}</b>` : ''}</summary><div class="support-thread-messages">${items.map(item => `<article class="support-message-card ${item.sender === 'admin' ? 'is-admin' : ''}"><p>${escapeHtml(item.message || '')}</p><small>${item.sender === 'admin' ? 'Admin' : 'Játékos'}</small></article>`).join('')}</div></details>`; }).join('') : '<p>Nincs új Support-üzenet.</p>';
-  } catch (error) { console.warn('Support inbox failed', error); adminSupportMessages.textContent = 'A Support-üzenetek nem tölthetők be.'; }
-  finally { adminLoadSupport.disabled = false; }
 });
 
 async function deletePlayerSupportMessages(uid, email) {
@@ -593,7 +582,6 @@ adminPlayers?.addEventListener('click', async (event) => {
       if (!registrySaved && !directSaved && !playerFlagSaved) throw new Error('No ban record could be written');
       row.remove();
       await loadLeaderboard();
-      if (adminSupportMessages) adminSupportMessages.innerHTML = '';
       if (messageCleanup.failed) toast('A profil bannolva, de néhány Support-üzenet nem volt törölhető.');
       else toast('A profil bannolva, a Support-üzenetei törölve.');
     } catch (error) { console.warn('Admin player ban failed', error); toast('A bannolás sikertelen.'); }
