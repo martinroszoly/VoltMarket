@@ -7,6 +7,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
+  deleteUser,
   getAuth,
   reload,
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
@@ -40,6 +41,7 @@ const api = {
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
+  deleteUser,
   reload,
   userDoc: (uid) => doc(db, 'players', uid),
 };
@@ -70,6 +72,7 @@ const adminLoadPlayers = document.querySelector('#adminLoadPlayers');
 const adminPlayers = document.querySelector('#adminPlayers');
 const supportPanel = document.querySelector('#supportPanel');
 const supportButton = document.querySelector('#supportButton');
+const accountDeleteButton = document.querySelector('#accountDeleteButton');
 const ADMIN_EMAIL = 'martin.roszoly2002@gmail.com';
 let registerMode = false;
 let syncTimer;
@@ -128,6 +131,11 @@ form?.addEventListener('submit', async (event) => {
     const email = emailInput.value.trim();
     const password = passwordInput.value;
     if (registerMode) {
+      const banned = await getDoc(doc(db, 'bannedEmails', email.toLowerCase()));
+      if (banned.exists()) {
+        setStatus('Ezzel az e-mail-címmel nem lehet új profilt létrehozni.');
+        return;
+      }
       const credential = await createUserWithEmailAndPassword(auth, email, password);
       const displayName = nameInput.value.trim();
       if (displayName) await updateProfile(credential.user, { displayName });
@@ -215,6 +223,23 @@ supportButton?.addEventListener('click', () => {
   const body = `Játékosnév: ${name}\nE-mail-cím: ${user.email || 'nem elérhető'}\nRegisztráció időpontja: ${registered}\n\nÜzenet:\n`;
   window.location.href = `mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent(`VoltMarket Support – ${name}`)}&body=${encodeURIComponent(body)}`;
 });
+accountDeleteButton?.addEventListener('click', async () => {
+  const user = auth.currentUser;
+  if (!user || !confirm('Véglegesen törlöd a saját VoltMarket-profilodat és bejelentkezési fiókodat?')) return;
+  accountDeleteButton.disabled = true;
+  try {
+    await deleteDoc(doc(db, 'players', user.uid));
+    await deleteUser(user);
+    localStorage.removeItem('voltmarket-save');
+    localStorage.removeItem('voltmarket-workshop');
+    sessionStorage.removeItem('volt-cloud-restored-user');
+    window.location.replace('./auth.html');
+  } catch (error) {
+    console.warn('Account deletion failed', error);
+    setSyncStatus(error?.code === 'auth/requires-recent-login' ? 'A törléshez jelentkezz be újra, majd próbáld ismét.' : 'A profil törlése sikertelen.');
+    accountDeleteButton.disabled = false;
+  }
+});
 verifyButton?.addEventListener('click', async () => {
   try {
     if (!auth.currentUser) {
@@ -251,7 +276,7 @@ adminLoadPlayers?.addEventListener('click', async () => {
       const game = player.gameState && typeof player.gameState === 'object' ? player.gameState : {};
       const name = escapeHtml(player.email?.toLowerCase() === ADMIN_EMAIL ? 'VoltMarketAdmin' : (player.displayName || 'Névtelen'));
       const email = escapeHtml(player.email || '');
-      return `<div class="admin-player" data-admin-uid="${escapeHtml(item.id)}"><div class="admin-player-main"><strong>${name}</strong><small>${email || 'E-mail nélkül'}</small></div><label>Név<input class="admin-name" value="${name}" maxlength="40"></label><label>Szint<input class="admin-level" type="number" min="1" max="999" value="${Math.max(1, finite(game.level, finite(player.level, 1)))}"></label><label>Kredit<input class="admin-balance" type="number" min="0" value="${Math.max(0, finite(game.balance, finite(player.balance)))}"></label><span class="admin-player-actions"><button class="small-btn admin-save-player" type="button">Mentés</button>${email ? `<a class="small-btn admin-mail-player" href="mailto:${email}?subject=VoltMarket%20üzenet">E-mail</a>` : ''}<button class="small-btn danger admin-delete-player" type="button">Törlés</button></span></div>`;
+      return `<div class="admin-player" data-admin-uid="${escapeHtml(item.id)}"><div class="admin-player-main"><strong>${name}</strong><small>${email || 'E-mail nélkül'}</small></div><label>Név<input class="admin-name" value="${name}" maxlength="40"></label><label>Szint<input class="admin-level" type="number" min="1" max="999" value="${Math.max(1, finite(game.level, finite(player.level, 1)))}"></label><label>Kredit<input class="admin-balance" type="number" min="0" value="${Math.max(0, finite(game.balance, finite(player.balance)))}"></label><span class="admin-player-actions"><button class="small-btn admin-save-player" type="button">Mentés</button>${email ? `<a class="small-btn admin-mail-player" href="mailto:${email}?subject=VoltMarket%20üzenet">E-mail</a>` : ''}<button class="small-btn danger admin-delete-player" type="button">Profil törlése</button><button class="small-btn danger admin-ban-player" type="button">Bannolás</button></span></div>`;
     }).join('') || '<p>Nincs még játékosprofil.</p>';
   } catch (error) { adminPlayers.textContent = 'A játékoslista nem tölthető be.'; console.warn('Admin player list failed', error); }
   finally { adminLoadPlayers.disabled = false; }
@@ -282,9 +307,20 @@ adminPlayers?.addEventListener('click', async (event) => {
     } catch (error) { console.warn('Admin player update failed', error); toast('A játékos profilja nem frissíthető.'); }
   }
   if (event.target.closest('.admin-delete-player')) {
-    if (!confirm('Törlöd ennek a játékosnak a mentett VoltMarket-profilját?')) return;
-    try { await deleteDoc(targetRef); row.remove(); await loadLeaderboard(); toast('A játékos mentett profilja törölve.'); }
+    if (!confirm('Törlöd ennek a játékosnak a mentett VoltMarket-profilját? A bejelentkezési fiók megmarad.')) return;
+    try { await deleteDoc(targetRef); row.remove(); await loadLeaderboard(); toast('A játékos profilja törölve.'); }
     catch (error) { console.warn('Admin player delete failed', error); toast('A játékos profilja nem törölhető.'); }
+  }
+  if (event.target.closest('.admin-ban-player')) {
+    const email = row.querySelector('.admin-player-main small')?.textContent.trim().toLowerCase();
+    if (!email || !confirm(`Bannolod a(z) ${email} címet? Ezzel később sem lehet új profilt regisztrálni.`)) return;
+    try {
+      await setDoc(doc(db, 'bannedEmails', email), { email, uid: row.dataset.adminUid, bannedAt: serverTimestamp(), bannedBy: auth.currentUser.email }, { merge: true });
+      await deleteDoc(targetRef);
+      row.remove();
+      await loadLeaderboard();
+      toast('Az e-mail-cím bannolva.');
+    } catch (error) { console.warn('Admin player ban failed', error); toast('A bannolás sikertelen.'); }
   }
 });
 document.body.classList.add('auth-required');
