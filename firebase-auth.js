@@ -309,7 +309,9 @@ onAuthStateChanged(auth, async (user) => {
         const remote = latest.data()?.gameState;
         if (!remote) return;
         const local = JSON.parse(localStorage.getItem('voltmarket-save') || 'null');
-        if (!local || Number(local.level) !== Number(remote.level) || Number(local.balance) !== Number(remote.balance)) {
+        const remoteName = latest.data()?.displayName || '';
+        if (!local || Number(local.level) !== Number(remote.level) || Number(local.balance) !== Number(remote.balance) || remoteName !== (auth.currentUser.displayName || '')) {
+          if (remoteName !== (auth.currentUser.displayName || '')) await updateProfile(auth.currentUser, { displayName: remoteName });
           localStorage.setItem('voltmarket-save', JSON.stringify(remote));
           if (latest.data()?.workshopState) localStorage.setItem('voltmarket-workshop', JSON.stringify(latest.data().workshopState));
           window.location.reload();
