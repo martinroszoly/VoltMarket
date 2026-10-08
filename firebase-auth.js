@@ -164,7 +164,23 @@ form?.addEventListener('submit', async (event) => {
     }
   } catch (error) {
     if (registerMode && error?.code === 'auth/email-already-in-use') {
-      setStatus('Ezzel az e-maillel már van Firebase-fiók. Válts Belépés módra; a törölt profil belépéskor újra létrejön.');
+      // An admin profile deletion removes the game profile, but cannot delete
+      // another user's Firebase Auth identity from a static client. Reuse the
+      // same credentials to recreate a deleted profile from this form.
+      try {
+        const credential = await signInWithEmailAndPassword(auth, email, password);
+        const existing = await getDoc(doc(db, 'players', credential.user.uid));
+        if (!existing.exists()) {
+          const displayName = nameInput.value.trim();
+          if (displayName) await updateProfile(credential.user, { displayName });
+          await persistNewPlayer(credential.user);
+          setStatus('A törölt profil újra létrejött. Betöltés…');
+          return;
+        }
+      } catch (reactivationError) {
+        console.warn('Deleted profile reactivation failed', reactivationError);
+      }
+      setStatus('Ezzel az e-maillel már van Firebase-fiók. Törölt profilnál használd a korábbi jelszót, vagy válts Belépés módra.');
     } else setStatus(authError(error));
   }
   finally { submitButton.disabled = false; }
@@ -201,7 +217,7 @@ onAuthStateChanged(auth, async (user) => {
   if (!user) { setMode(false); setSyncStatus('Nincs bejelentkezett fiók'); return; }
   const isAdmin = user.email?.toLowerCase() === ADMIN_EMAIL;
   if (adminPanel) adminPanel.hidden = !isAdmin;
-  if (supportPanel) supportPanel.hidden = isAdmin;
+  if (supportPanel) supportPanel.hidden = false;
   if (accountName) accountName.textContent = isAdmin ? 'VoltMarketAdmin' : (user.displayName || 'VoltMarket játékos');
   if (accountEmail) accountEmail.textContent = user.email || '';
   if (accountNameInput) accountNameInput.value = user.displayName || '';
@@ -246,7 +262,11 @@ supportButton?.addEventListener('click', () => {
   const name = user.displayName || 'Névtelen játékos';
   const registered = user.metadata?.creationTime ? new Date(user.metadata.creationTime).toLocaleString('hu-HU') : 'nem elérhető';
   const body = `Játékosnév: ${name}\nE-mail-cím: ${user.email || 'nem elérhető'}\nRegisztráció időpontja: ${registered}\n\nÜzenet:\n`;
-  window.location.href = `mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent(`VoltMarket Support – ${name}`)}&body=${encodeURIComponent(body)}`;
+  const mailto = `mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent(`VoltMarket Support – ${name}`)}&body=${encodeURIComponent(body)}`;
+  window.location.assign(mailto);
+  setTimeout(() => {
+    if (document.visibilityState === 'visible') setSyncStatus(`Ha nem nyílt meg a levelező, írj ide: ${ADMIN_EMAIL}`);
+  }, 900);
 });
 accountDeleteButton?.addEventListener('click', async () => {
   const user = auth.currentUser;
