@@ -290,18 +290,9 @@ onAuthStateChanged(auth, async (user) => {
     }, { merge: true });
     setSyncStatus('Firebase-szinkronizáció aktív');
     await loadLeaderboard();
-    if (profileWasDeleted && sessionStorage.getItem('volt-cloud-restored-user') !== user.uid) {
-      sessionStorage.setItem('volt-cloud-restored-user', user.uid);
-      window.location.reload();
-      return;
-    }
     if (snapshot.exists() && snapshot.data().gameState) {
       localStorage.setItem('voltmarket-save', JSON.stringify(snapshot.data().gameState));
       if (snapshot.data().workshopState) localStorage.setItem('voltmarket-workshop', JSON.stringify(snapshot.data().workshopState));
-      if (sessionStorage.getItem('volt-cloud-restored-user') !== user.uid) {
-        sessionStorage.setItem('volt-cloud-restored-user', user.uid);
-        window.location.reload();
-      }
     }
     // Do not poll and reload an already-open game in the background. Reloading
     // while the player is working is disruptive and can make the page appear
@@ -455,7 +446,8 @@ adminPlayers?.addEventListener('click', async (event) => {
       if (targetRef.id === auth.currentUser.uid) {
         localStorage.setItem('voltmarket-save', JSON.stringify(gameState));
         sessionStorage.setItem('volt-cloud-restored-user', auth.currentUser.uid);
-        window.location.reload();
+        setSyncStatus('Saját profil frissítve. Az új értékek a következő belépéskor töltődnek be.');
+        toast('A saját játékosprofilod frissítve.');
         return;
       }
       setSyncStatus('Játékosprofil frissítve'); await loadLeaderboard(); toast('A játékos profilja frissítve.');
