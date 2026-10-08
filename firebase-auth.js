@@ -267,7 +267,10 @@ adminPlayers?.addEventListener('click', async (event) => {
     try {
       const snapshot = await getDoc(targetRef);
       const current = snapshot.exists() ? snapshot.data() : {};
-      const gameState = { ...(current.gameState || {}), level, balance };
+      // A level can be lowered to any valid level. Reset XP on an admin level
+      // change so the normal progression loop cannot immediately level it back
+      // up from stale XP stored in the previous game state.
+      const gameState = { ...(current.gameState || {}), level, balance, xp: 0 };
       await setDoc(targetRef, { displayName: name, level, balance, gameState, updatedAt: serverTimestamp() }, { merge: true });
       if (targetRef.id === auth.currentUser.uid) {
         localStorage.setItem('voltmarket-save', JSON.stringify(gameState));
