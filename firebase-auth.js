@@ -207,6 +207,16 @@ logoutButton?.addEventListener('click', async () => {
 });
 onAuthStateChanged(auth, async (user) => {
   clearTimeout(authRedirectTimer);
+  if (user?.email) {
+    try {
+      const banned = await getDoc(doc(db, 'bannedEmails', user.email.toLowerCase()));
+      if (banned.exists()) {
+        await signOut(auth);
+        if (isAuthPage) setStatus('Ez az e-mail-cím bannolva van, a fiók nem használható.');
+        return;
+      }
+    } catch (banError) { console.warn('Banned account lookup skipped', banError); }
+  }
   if (user && await needsEmailVerification(user)) {
     if (!isAuthPage) window.location.replace('./auth.html');
     setStatus('A belépéshez erősítsd meg az e-mail-címedet.');
