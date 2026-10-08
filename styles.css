@@ -231,3 +231,11 @@ body.auth-required > *:not(#authGate) { display: none !important; }
 .header-player-name strong{min-width:0;overflow:hidden;text-overflow:ellipsis;color:#fff;font-size:.8rem}
 @media(max-width:720px){.header-player-name{order:2;max-width:145px;padding:6px 8px}.header-player-name__label{display:none}.header-player-name strong{font-size:.72rem}.topbar .nav{order:3}}
 @media(max-width:480px){.header-player-name{max-width:112px}.header-player-name strong{font-size:.66rem}}
+/* Keep the signed-in player name below the VoltMarket brand. */
+.brand-cluster{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0;flex:0 0 auto}
+.brand-cluster .brand{min-width:0}
+.brand-cluster .header-player-name{order:initial;max-width:190px;padding:3px 9px;border-radius:8px}
+.brand-cluster .header-player-name__label{display:none}
+.brand-cluster .header-player-name strong{font-size:.72rem}
+@media(max-width:720px){.brand-cluster{max-width:145px}.brand-cluster .header-player-name{max-width:145px}}
+@media(max-width:480px){.brand-cluster{max-width:112px}.brand-cluster .header-player-name{max-width:112px}.brand-cluster .header-player-name strong{font-size:.66rem}}
