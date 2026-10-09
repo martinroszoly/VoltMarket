@@ -13,8 +13,10 @@ test('Firebase web configuration is present', async () => {
 
 test('Firebase auth module is wired into the page', async () => {
   const html = await read('index.html');
+  const authHtml = await read('auth.html');
   const auth = await read('firebase-auth.js');
-  assert.match(html, /firebase-auth\.js/);
+  assert.match(html, /firebase-auth\.js\?v=35/);
+  assert.match(authHtml, /firebase-auth\.js\?v=35/);
   assert.match(auth, /createUserWithEmailAndPassword/);
   assert.match(auth, /onAuthStateChanged/);
   assert.match(auth, /volt-state-changed/);
