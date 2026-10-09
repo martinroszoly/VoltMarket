@@ -30,8 +30,10 @@ test('Firestore rules protect player documents', async () => {
 test('auth keeps normal, deleted, and banned profiles on separate paths', async () => {
   const auth = await read('firebase-auth.js');
   const authHtml = await read('auth.html');
-  assert.match(auth, /profile\.data\(\)\?\.profileDeleted === true/);
-  assert.match(auth, /if \(!profile\.exists\(\)\) await persistNewPlayer/);
+  assert.match(auth, /profileData\.profileDeleted === true/);
+  assert.match(auth, /if \(profile && !profile\.exists\(\)\)/);
+  assert.match(auth, /withTimeout/);
+  assert.match(auth, /Promise\.allSettled/);
   assert.match(auth, /volt-banned-login/);
   assert.match(authHtml, /A profilodat töröltük/);
   assert.match(authHtml, /deletedProfileName/);
