@@ -530,7 +530,6 @@ adminLoadPlayers?.addEventListener('click', async () => {
         .filter(item => item.status === 'new' && item.sender === 'player' && supportMessageTime(item.createdAt) > Number(supportReadAtByUid[item.uid] || 0))
         .forEach(item => supportUnreadByUid.set(item.uid, (supportUnreadByUid.get(item.uid) || 0) + 1));
     }
-    const adminProfile = snapshot.docs.find(item => item.id === auth.currentUser.uid)?.data() || {};
     const bannedEmails = new Set((Array.isArray(adminProfile.bannedEmails) ? adminProfile.bannedEmails : []).map(value => String(value).trim().toLowerCase()));
     adminPlayers.innerHTML = snapshot.docs.filter(item => {
       const player = item.data();
