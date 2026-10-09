@@ -15,8 +15,8 @@ test('Firebase auth module is wired into the page', async () => {
   const html = await read('index.html');
   const authHtml = await read('auth.html');
   const auth = await read('firebase-auth.js');
-  assert.match(html, /firebase-auth\.js\?v=35/);
-  assert.match(authHtml, /firebase-auth\.js\?v=35/);
+  assert.match(html, /firebase-auth\.js\?v=36/);
+  assert.match(authHtml, /firebase-auth\.js\?v=36/);
   assert.match(auth, /createUserWithEmailAndPassword/);
   assert.match(auth, /onAuthStateChanged/);
   assert.match(auth, /volt-state-changed/);
@@ -40,4 +40,10 @@ test('auth keeps normal, deleted, and banned profiles on separate paths', async 
   assert.match(authHtml, /A profilodat töröltük/);
   assert.match(authHtml, /deletedProfileName/);
   assert.doesNotMatch(authHtml, /deletedProfilePassword/);
+});
+
+test('registration creates a playable profile and redirects immediately', async () => {
+  const auth = await read('firebase-auth.js');
+  assert.match(auth, /persistNewPlayer\(credential\.user, displayName, false\)/);
+  assert.match(auth, /sendEmailVerification\(credential\.user\)[\s\S]*?window\.location\.replace\('\.\/index\.html'\)/);
 });
