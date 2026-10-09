@@ -9,7 +9,6 @@ import {
   updateProfile,
   deleteUser,
   getAuth,
-  reload,
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
 import {
   doc,
@@ -47,7 +46,6 @@ const api = {
   signOut,
   updateProfile,
   deleteUser,
-  reload,
   userDoc: (uid) => doc(db, 'players', uid),
 };
 
@@ -103,6 +101,11 @@ let authRedirectTimer;
 let remoteStateTimer;
 let registrationInProgress = false;
 
+const withTimeout = (promise, milliseconds = 2500) => Promise.race([
+  promise,
+  new Promise((_, reject) => setTimeout(() => reject(new Error('Firebase request timed out')), milliseconds)),
+]);
+
 function activatePlayerStorage(uid, notify = false) {
   if (uid) {
     window.VoltStorage?.primeLegacy(uid);
@@ -156,45 +159,43 @@ async function persistNewPlayer(user, displayNameOverride = null, verificationRe
     adminOverride: null,
   }, { merge: true });
 }
-async function needsEmailVerification(user) {
-  if (!user || user.emailVerified) return false;
-  try {
-    const snapshot = await getDoc(doc(db, 'players', user.uid));
-    // Profiles created before the verification flow remain usable. New registrations
-    // are marked explicitly and still need to verify once.
-    return snapshot.exists() && snapshot.data().verificationRequired === true;
-  } catch (error) {
-    console.warn('Verification status lookup failed', error);
-    // A temporary Firestore problem must never block a valid Firebase login.
-    return false;
-  }
-}
 async function isEmailBanned(email, uid = '') {
   const normalized = String(email || '').trim().toLowerCase();
   if (!normalized || normalized === ADMIN_EMAIL) return false;
-  try {
-    const direct = await getDoc(doc(db, 'bannedEmails', normalized));
-    if (direct.exists()) return true;
-  } catch (error) { console.warn('Direct ban lookup failed', error); }
-  try {
-    if (uid) {
-      const player = await getDoc(doc(db, 'players', uid));
-      if (player.data()?.banned === true) return true;
-    }
-  } catch (error) { console.warn('Player ban lookup failed', error); }
-  // Fallback registry lives on the admin's own document. It remains writable
-  // even when the optional bannedEmails collection rule has not propagated.
-  try {
-    const admins = await getDocs(query(collection(db, 'players'), where('email', '==', ADMIN_EMAIL)));
-    return admins.docs.some(item => Array.isArray(item.data()?.bannedEmails) && item.data().bannedEmails.map(value => String(value).toLowerCase()).includes(normalized));
-  } catch (error) { console.warn('Admin ban registry lookup failed', error); return false; }
+  const checks = await Promise.allSettled([
+    withTimeout(getDoc(doc(db, 'bannedEmails', normalized))),
+    uid ? withTimeout(getDoc(doc(db, 'players', uid))) : Promise.resolve(null),
+    withTimeout(getDocs(query(collection(db, 'players'), where('email', '==', ADMIN_EMAIL)))),
+  ]);
+  const direct = checks[0].status === 'fulfilled' ? checks[0].value : null;
+  const player = checks[1].status === 'fulfilled' ? checks[1].value : null;
+  const admins = checks[2].status === 'fulfilled' ? checks[2].value : null;
+  return Boolean(
+    direct?.exists?.()
+    || player?.data?.()?.banned === true
+    || admins?.docs?.some(item => Array.isArray(item.data()?.bannedEmails)
+      && item.data().bannedEmails.map(value => String(value).toLowerCase()).includes(normalized))
+  );
 }
 form?.addEventListener('submit', async (event) => {
   event.preventDefault(); setStatus(''); submitButton.disabled = true;
   try {
     const email = emailInput.value.trim();
     const password = passwordInput.value;
+    if (!email || !password) {
+      setStatus('Add meg az e-mail-címedet és a jelszavadat.');
+      return;
+    }
+    if (password.length < 6) {
+      setStatus('A jelszó legalább 6 karakter legyen.');
+      return;
+    }
     if (registerMode) {
+      const displayName = nameInput.value.trim();
+      if (displayName.length < 2) {
+        setStatus('Adj meg legalább 2 karakteres játékosnevet.');
+        return;
+      }
       // A tiltólista ellenőrzése nem blokkolhatja a regisztrációt akkor sem,
       // ha a Firestore-szabályok még propagálódnak vagy átmenetileg nem érhetők el.
       if (await isEmailBanned(email)) {
@@ -203,26 +204,20 @@ form?.addEventListener('submit', async (event) => {
       }
       registrationInProgress = true;
       const credential = await createUserWithEmailAndPassword(auth, email, password);
-      const displayName = nameInput.value.trim();
       if (displayName) await updateProfile(credential.user, { displayName });
-      await persistNewPlayer(credential.user);
-      await sendEmailVerification(credential.user);
-      setStatus('Megerősítő e-mailt küldtünk. Ellenőrizd a postafiókodat.');
+      try { await withTimeout(persistNewPlayer(credential.user)); }
+      catch (profileError) { console.warn('Initial player profile save delayed', profileError); }
+      try {
+        await sendEmailVerification(credential.user);
+        setStatus('A regisztráció sikerült. Megerősítő e-mailt küldtünk.');
+      } catch (verificationError) {
+        console.warn('Verification email send failed', verificationError);
+        setStatus('A regisztráció sikerült, de a megerősítő e-mail küldése most nem sikerült. Az újraküldés gombbal próbáld újra.');
+      }
       if (verifyButton) verifyButton.hidden = false;
     } else {
-      const credential = await signInWithEmailAndPassword(auth, email, password);
-      await reload(credential.user);
-      if (await needsEmailVerification(credential.user)) {
-        setStatus('A belépéshez előbb erősítsd meg az e-mail-címedet.');
-        if (verifyButton) verifyButton.hidden = false;
-      } else {
-        // Do not recreate a profile deleted by the admin during sign-in.
-        // Its missing document triggers the mandatory new name/password flow.
-        const existingProfile = await getDoc(doc(db, 'players', credential.user.uid));
-        if (existingProfile.exists()) {
-          await setDoc(existingProfile.ref, { verificationRequired: false }, { merge: true });
-        }
-      }
+      setStatus('Belépés…');
+      await signInWithEmailAndPassword(auth, email, password);
     }
   } catch (error) {
     if (registerMode && error?.code === 'auth/email-already-in-use') {
@@ -284,35 +279,43 @@ onAuthStateChanged(auth, async (user) => {
   clearTimeout(authRedirectTimer);
   clearInterval(remoteStateTimer);
   if (!user) activatePlayerStorage(null, true);
-  if (user?.email && await isEmailBanned(user.email, user.uid)) {
-    sessionStorage.setItem('volt-banned-login', '1');
-    await signOut(auth);
-    if (isAuthPage) {
-      setStatus('Ez az e-mail-cím bannolva van, a fiók nem használható.');
-      if (bannedModal) bannedModal.hidden = false;
-    } else window.location.replace('./auth.html');
-    return;
-  }
   if (user && registrationInProgress) return;
-  if (user && await needsEmailVerification(user)) {
-    if (!isAuthPage) window.location.replace('./auth.html');
-    setStatus('A belépéshez erősítsd meg az e-mail-címedet.');
-    if (verifyButton) verifyButton.hidden = false;
-    return;
-  }
-  if (user && !registrationInProgress) {
-    try {
-      const profile = await getDoc(doc(db, 'players', user.uid));
-      if (profile.data()?.profileDeleted === true) {
-        showDeletedProfileSetup();
-        return;
-      }
-      // Legacy Firebase users without a player document are normal users,
-      // not deleted profiles. Create their missing game profile and continue.
-      if (!profile.exists()) await persistNewPlayer(user, user.displayName || 'VoltMarket játékos', false);
-    } catch (error) {
-      console.warn('Deleted profile check failed', error);
-      // A Firestore read error must not prevent navigation after valid auth.
+  if (user) {
+    const normalizedEmail = String(user.email || '').trim().toLowerCase();
+    const [profileResult, directBanResult] = await Promise.allSettled([
+      withTimeout(getDoc(doc(db, 'players', user.uid))),
+      normalizedEmail && normalizedEmail !== ADMIN_EMAIL
+        ? withTimeout(getDoc(doc(db, 'bannedEmails', normalizedEmail)))
+        : Promise.resolve(null),
+    ]);
+    const profile = profileResult.status === 'fulfilled' ? profileResult.value : null;
+    const profileData = profile?.data?.() || {};
+    const directlyBanned = directBanResult.status === 'fulfilled' && directBanResult.value?.exists?.();
+
+    if (profileData.banned === true || directlyBanned) {
+      sessionStorage.setItem('volt-banned-login', '1');
+      await signOut(auth);
+      if (isAuthPage) {
+        setStatus('Ez az e-mail-cím bannolva van, a fiók nem használható.');
+        if (bannedModal) bannedModal.hidden = false;
+      } else window.location.replace('./auth.html');
+      return;
+    }
+    if (profileData.profileDeleted === true) {
+      showDeletedProfileSetup();
+      return;
+    }
+    if (!user.emailVerified && profileData.verificationRequired === true) {
+      if (!isAuthPage) window.location.replace('./auth.html');
+      setStatus('A belépéshez erősítsd meg az e-mail-címedet.');
+      if (verifyButton) verifyButton.hidden = false;
+      return;
+    }
+    // A legacy Firebase account without a game document is a normal account.
+    // Create the missing profile in the background; never block navigation.
+    if (profile && !profile.exists()) {
+      persistNewPlayer(user, user.displayName || 'VoltMarket játékos', false)
+        .catch(error => console.warn('Missing player profile creation failed', error));
     }
   }
   if (user && isAuthPage) {
