@@ -205,16 +205,14 @@ form?.addEventListener('submit', async (event) => {
       registrationInProgress = true;
       const credential = await createUserWithEmailAndPassword(auth, email, password);
       if (displayName) await updateProfile(credential.user, { displayName });
-      try { await withTimeout(persistNewPlayer(credential.user)); }
+      try { await withTimeout(persistNewPlayer(credential.user, displayName, false)); }
       catch (profileError) { console.warn('Initial player profile save delayed', profileError); }
-      try {
-        await sendEmailVerification(credential.user);
-        setStatus('A regisztráció sikerült. Megerősítő e-mailt küldtünk.');
-      } catch (verificationError) {
-        console.warn('Verification email send failed', verificationError);
-        setStatus('A regisztráció sikerült, de a megerősítő e-mail küldése most nem sikerült. Az újraküldés gombbal próbáld újra.');
-      }
-      if (verifyButton) verifyButton.hidden = false;
+      // A megerősítő levél hasznos, de nem tarthatja a felhasználót a
+      // regisztrációs oldalon. A profil elkészülte után rögtön indul a játék.
+      sendEmailVerification(credential.user)
+        .catch(verificationError => console.warn('Verification email send failed', verificationError));
+      window.location.replace('./index.html');
+      return;
     } else {
       setStatus('Belépés…');
       await signInWithEmailAndPassword(auth, email, password);
